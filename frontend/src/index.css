@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #FDF8F0;
+    color: #3D2B1F;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Lora', Georgia, serif;
+  }
+
+  ::selection {
+    background-color: #E0C5A0;
+  }
+
+  * {
+    scroll-behavior: smooth;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #FAF0E0;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #C4956A;
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-warm-600 hover:bg-warm-700 text-white font-medium px-5 py-2.5 rounded-xl
+           transition-all duration-200 shadow-sm hover:shadow-warm focus:outline-none
+           focus:ring-2 focus:ring-warm-400 focus:ring-offset-2 focus:ring-offset-warm-50;
+  }
+
+  .btn-secondary {
+    @apply bg-warm-100 hover:bg-warm-200 text-warm-800 font-medium px-5 py-2.5 rounded-xl
+           transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-warm-400
+           focus:ring-offset-2 focus:ring-offset-warm-50;
+  }
+
+  .btn-ghost {
+    @apply text-warm-600 hover:bg-warm-100 font-medium px-4 py-2 rounded-xl
+           transition-all duration-200 focus:outline-none;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-warm border border-warm-100 overflow-hidden;
+  }
+
+  .input {
+    @apply w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-3
+           text-warm-900 placeholder-warm-400 focus:outline-none focus:ring-2
+           focus:ring-warm-400 focus:border-transparent transition-all duration-200;
+  }
+
+  .textarea {
+    @apply w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-3
+           text-warm-900 placeholder-warm-400 focus:outline-none focus:ring-2
+           focus:ring-warm-400 focus:border-transparent transition-all duration-200
+           resize-none;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-warm-700 mb-1.5;
+  }
+}
+
+/* Typing animation for streaming */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: #A87040;
+  margin-left: 1px;
+}
+
+/* Message bubble fade-in */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.message-in {
+  animation: messageIn 0.25s ease-out;
+}

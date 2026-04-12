@@ -147,7 +147,7 @@ export default function NewPersona() {
           </p>
           <textarea
             className="textarea h-40"
-            placeholder="e.g. "Don't forget to eat, sweetheart." / "I'm so proud of you, no matter what." / Paste a letter or message here…"
+            placeholder={"e.g. \"Don't forget to eat, sweetheart.\" / \"I'm so proud of you, no matter what.\" / Paste a letter or message here\u2026"}
             value={form.past_conversations}
             onChange={(e) => setForm({ ...form, past_conversations: e.target.value })}
           />

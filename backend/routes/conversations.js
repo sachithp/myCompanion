@@ -4,6 +4,7 @@ const Anthropic = require('@anthropic-ai/sdk')
 const { getDb } = require('../database/db')
 
 const router = express.Router()
+require('dotenv').config({ override: true })
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 function buildSystemPrompt(persona, memories) {

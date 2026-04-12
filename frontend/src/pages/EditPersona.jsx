@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Camera, Plus, X, Loader } from 'lucide-react'
 import { getPersona, updatePersona, addMemory, deleteMemory, uploadPhoto } from '../api'
+import OceanSliders from '../components/OceanSliders'
 
 export default function EditPersona() {
   const { id } = useParams()
@@ -11,6 +12,13 @@ export default function EditPersona() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
     name: '', relationship: '', description: '', past_conversations: '', photo_path: '',
+  })
+  const [ocean, setOcean] = useState({
+    ocean_openness:          50,
+    ocean_conscientiousness: 50,
+    ocean_extraversion:      50,
+    ocean_agreeableness:     50,
+    ocean_neuroticism:       50,
   })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -24,11 +32,18 @@ export default function EditPersona() {
       .then((res) => {
         const p = res.data
         setForm({
-          name: p.name || '',
-          relationship: p.relationship || '',
-          description: p.description || '',
+          name:               p.name               || '',
+          relationship:       p.relationship       || '',
+          description:        p.description        || '',
           past_conversations: p.past_conversations || '',
-          photo_path: p.photo_path || '',
+          photo_path:         p.photo_path         || '',
+        })
+        setOcean({
+          ocean_openness:          p.ocean_openness          ?? 50,
+          ocean_conscientiousness: p.ocean_conscientiousness ?? 50,
+          ocean_extraversion:      p.ocean_extraversion      ?? 50,
+          ocean_agreeableness:     p.ocean_agreeableness     ?? 50,
+          ocean_neuroticism:       p.ocean_neuroticism       ?? 50,
         })
         if (p.photo_path) setPhotoPreview(p.photo_path)
         setMemories(p.memories || [])
@@ -42,6 +57,10 @@ export default function EditPersona() {
     if (!file) return
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  function handleOceanChange(key, value) {
+    setOcean((prev) => ({ ...prev, [key]: value }))
   }
 
   async function handleAddMemory() {
@@ -77,7 +96,7 @@ export default function EditPersona() {
         const uploadRes = await uploadPhoto(photoFile)
         photo_path = uploadRes.data.path
       }
-      await updatePersona(id, { ...form, photo_path })
+      await updatePersona(id, { ...form, ...ocean, photo_path })
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong. Please try again.')
@@ -103,7 +122,8 @@ export default function EditPersona() {
       <p className="text-warm-500 text-sm mb-8">Update the details to make conversations feel more natural.</p>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Photo + Name + Relationship */}
+
+        {/* ── Who they are ─────────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-5">Who they are</h2>
           <div className="flex items-start gap-5 mb-5">
@@ -141,16 +161,32 @@ export default function EditPersona() {
           </div>
         </div>
 
-        {/* Description */}
+        {/* ── Personality (OCEAN) ───────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their personality</h2>
-          <p className="text-warm-400 text-xs mb-4">How they spoke, what they cared about, their warmth and quirks.</p>
-          <textarea className="textarea h-36" value={form.description}
-            placeholder="Describe their personality, mannerisms, and what made them special…"
+          <p className="text-warm-400 text-xs mb-1">
+            Use the <span className="font-semibold text-warm-600">Big Five</span> sliders to define their character.
+            Drag each one to where they would naturally fall — or where you remember them.
+          </p>
+          <p className="text-warm-400 text-xs mb-6">
+            <span className="font-medium">50</span> is average. Slide left for the low end, right for the high end.
+            The description updates as you move the slider.
+          </p>
+          <OceanSliders values={ocean} onChange={handleOceanChange} />
+        </div>
+
+        {/* ── Personal notes ────────────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Personal notes</h2>
+          <p className="text-warm-400 text-xs mb-4">
+            Anything the sliders can't capture — favourite phrases, habits, quirks, what made them uniquely <em>them</em>.
+          </p>
+          <textarea className="textarea h-32" value={form.description}
+            placeholder="e.g. She always called everyone 'dear'. Loved gardening and could talk about her roses for hours…"
             onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
 
-        {/* Past conversations */}
+        {/* ── Their words ───────────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their words</h2>
           <p className="text-warm-400 text-xs mb-4">Old texts, letters, or things they often said.</p>
@@ -159,7 +195,7 @@ export default function EditPersona() {
             onChange={(e) => setForm({ ...form, past_conversations: e.target.value })} />
         </div>
 
-        {/* Memories */}
+        {/* ── Cherished memories ────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Cherished memories</h2>
           <p className="text-warm-400 text-xs mb-4">Specific stories and moments to reference in conversation.</p>

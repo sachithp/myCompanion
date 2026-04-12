@@ -1,7 +1,16 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, User, Plus, X } from 'lucide-react'
+import { ArrowLeft, Camera, Plus, X } from 'lucide-react'
 import { createPersona, addMemory, uploadPhoto } from '../api'
+import OceanSliders from '../components/OceanSliders'
+
+const DEFAULT_OCEAN = {
+  ocean_openness:          50,
+  ocean_conscientiousness: 50,
+  ocean_extraversion:      50,
+  ocean_agreeableness:     50,
+  ocean_neuroticism:       50,
+}
 
 export default function NewPersona() {
   const navigate = useNavigate()
@@ -13,6 +22,7 @@ export default function NewPersona() {
     description: '',
     past_conversations: '',
   })
+  const [ocean, setOcean] = useState(DEFAULT_OCEAN)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [memories, setMemories] = useState([])
@@ -25,6 +35,10 @@ export default function NewPersona() {
     if (!file) return
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  function handleOceanChange(key, value) {
+    setOcean((prev) => ({ ...prev, [key]: value }))
   }
 
   function addMemoryDraft() {
@@ -50,7 +64,7 @@ export default function NewPersona() {
         photo_path = uploadRes.data.path
       }
 
-      const personaRes = await createPersona({ ...form, photo_path })
+      const personaRes = await createPersona({ ...form, ...ocean, photo_path })
       const personaId = personaRes.data.id
 
       for (const mem of memories) {
@@ -77,12 +91,11 @@ export default function NewPersona() {
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Photo + Name + Relationship */}
+
+        {/* ── Who they are ─────────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-5">Who they are</h2>
-
-          {/* Photo */}
-          <div className="flex items-start gap-5 mb-5">
+          <div className="flex items-start gap-5">
             <button
               type="button"
               onClick={() => fileRef.current.click()}
@@ -125,21 +138,35 @@ export default function NewPersona() {
           </div>
         </div>
 
-        {/* Description */}
+        {/* ── Personality (OCEAN) ───────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their personality</h2>
+          <p className="text-warm-400 text-xs mb-1">
+            Use the <span className="font-semibold text-warm-600">Big Five</span> sliders to define their character.
+            Drag each one to where they would naturally fall — or where you remember them.
+          </p>
+          <p className="text-warm-400 text-xs mb-6">
+            <span className="font-medium">50</span> is average. Slide left for the low end, right for the high end.
+            The description updates as you move the slider.
+          </p>
+          <OceanSliders values={ocean} onChange={handleOceanChange} />
+        </div>
+
+        {/* ── Personal notes (optional) ─────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Personal notes</h2>
           <p className="text-warm-400 text-xs mb-4">
-            Describe how they spoke, what they cared about, their warmth, their humor, their quirks.
+            Anything the sliders can't capture — their favourite phrases, habits, quirks, what made them uniquely <em>them</em>.
           </p>
           <textarea
-            className="textarea h-36"
-            placeholder="e.g. She always had a warm smile and called everyone 'dear'. She loved gardening and would talk about her roses for hours. She had a dry wit and a contagious laugh…"
+            className="textarea h-32"
+            placeholder="e.g. She always called everyone 'dear'. Loved gardening and could talk about her roses for hours. Had a dry wit and a contagious laugh…"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
         </div>
 
-        {/* Past conversations */}
+        {/* ── Their words ───────────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their words</h2>
           <p className="text-warm-400 text-xs mb-4">
@@ -153,14 +180,13 @@ export default function NewPersona() {
           />
         </div>
 
-        {/* Memories */}
+        {/* ── Cherished memories ────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Cherished memories</h2>
           <p className="text-warm-400 text-xs mb-4">
-            Add specific memories or stories the AI can reference in conversation.
+            Add specific memories or stories the AI can reference naturally in conversation.
           </p>
 
-          {/* Existing memory drafts */}
           {memories.length > 0 && (
             <div className="space-y-2 mb-4">
               {memories.map((m) => (
@@ -178,7 +204,6 @@ export default function NewPersona() {
             </div>
           )}
 
-          {/* Add memory */}
           <div className="space-y-2">
             <input
               className="input text-sm"

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { MessageCircle, Pencil, Trash2, BookOpen } from 'lucide-react'
-import { deletePersona } from '../api'
+import { MessageCircle, Pencil, Trash2, BookOpen, Download } from 'lucide-react'
+import { deletePersona, exportPersona } from '../api'
 
 const AVATAR_COLORS = ['#C4956A', '#A87040', '#8B5E3C', '#D4A5A5', '#6B8E6B', '#7A8BB5']
 
@@ -57,6 +57,14 @@ export default function PersonaCard({ persona, onDeleted }) {
 
           {/* Action buttons */}
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => exportPersona(persona.id, persona.name)}
+              className="p-1.5 rounded-lg text-warm-400 hover:text-warm-600 hover:bg-warm-100
+                         transition-colors"
+              title="Export"
+            >
+              <Download size={15} />
+            </button>
             <button
               onClick={() => navigate(`/personas/${persona.id}/edit`)}
               className="p-1.5 rounded-lg text-warm-400 hover:text-warm-600 hover:bg-warm-100

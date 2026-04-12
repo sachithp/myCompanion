@@ -24,6 +24,11 @@ function initDb() {
       photo_path TEXT,
       description TEXT,
       past_conversations TEXT,
+      ocean_openness          INTEGER DEFAULT 50,
+      ocean_conscientiousness INTEGER DEFAULT 50,
+      ocean_extraversion      INTEGER DEFAULT 50,
+      ocean_agreeableness     INTEGER DEFAULT 50,
+      ocean_neuroticism       INTEGER DEFAULT 50,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -51,6 +56,19 @@ function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `)
+
+  // Migrate existing databases — add OCEAN columns if not yet present
+  const oceanCols = [
+    'ocean_openness', 'ocean_conscientiousness', 'ocean_extraversion',
+    'ocean_agreeableness', 'ocean_neuroticism',
+  ]
+  for (const col of oceanCols) {
+    try {
+      db.exec(`ALTER TABLE personas ADD COLUMN ${col} INTEGER DEFAULT 50`)
+    } catch {
+      // Column already exists — safe to ignore
+    }
+  }
 
   return db
 }

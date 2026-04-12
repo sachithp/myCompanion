@@ -20,6 +20,16 @@ export const createConversation = (personaId) => api.post(`/personas/${personaId
 export const getMessages = (conversationId) => api.get(`/conversations/${conversationId}/messages`)
 export const deleteConversation = (id) => api.delete(`/conversations/${id}`)
 
+// Import / Export
+export const importPersona = (data) => api.post('/personas/import', data)
+export const exportPersona = (id, name) => {
+  const a = document.createElement('a')
+  a.href = `/api/personas/${id}/export`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 // Photo upload
 export const uploadPhoto = (file) => {
   const formData = new FormData()

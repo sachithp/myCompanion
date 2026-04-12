@@ -73,6 +73,47 @@
   }
 }
 
+/* OCEAN range sliders */
+input[type="range"] {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: #F5EDE3; /* warm-100 */
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--thumb-color, #C4956A);
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(61,43,31,0.25);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(61,43,31,0.3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--thumb-color, #C4956A);
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(61,43,31,0.25);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #F5EDE3;
+}
+
 /* Typing animation for streaming */
 @keyframes blink {
   0%, 100% { opacity: 1; }

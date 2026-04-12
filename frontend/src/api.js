@@ -14,6 +14,11 @@ export const addMemory = (personaId, data) => api.post(`/personas/${personaId}/m
 export const deleteMemory = (personaId, memoryId) =>
   api.delete(`/personas/${personaId}/memories/${memoryId}`)
 
+// Relations
+export const addRelation = (personaId, data) => api.post(`/personas/${personaId}/relations`, data)
+export const deleteRelation = (personaId, relationId) =>
+  api.delete(`/personas/${personaId}/relations/${relationId}`)
+
 // Conversations
 export const getConversations = (personaId) => api.get(`/personas/${personaId}/conversations`)
 export const createConversation = (personaId) => api.post(`/personas/${personaId}/conversations`)

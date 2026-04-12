@@ -33,8 +33,25 @@ function initDb() {
       ocean_extraversion      INTEGER DEFAULT 50,
       ocean_agreeableness     INTEGER DEFAULT 50,
       ocean_neuroticism       INTEGER DEFAULT 50,
+      location                TEXT,
+      usual_places            TEXT,
+      daily_routine           TEXT,
+      interests               TEXT,
+      likes                   TEXT,
+      dislikes                TEXT,
+      context_notes           TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS persona_relations (
+      id TEXT PRIMARY KEY,
+      persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      relation_to_persona TEXT,
+      relation_to_user TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS memory_cards (
@@ -61,17 +78,23 @@ function initDb() {
     );
   `)
 
-  // Migrate existing databases — add OCEAN columns if not yet present
-  const oceanCols = [
-    'ocean_openness', 'ocean_conscientiousness', 'ocean_extraversion',
-    'ocean_agreeableness', 'ocean_neuroticism',
+  // Migrate existing databases — add new columns if not yet present
+  const migrations = [
+    'ALTER TABLE personas ADD COLUMN ocean_openness          INTEGER DEFAULT 50',
+    'ALTER TABLE personas ADD COLUMN ocean_conscientiousness INTEGER DEFAULT 50',
+    'ALTER TABLE personas ADD COLUMN ocean_extraversion      INTEGER DEFAULT 50',
+    'ALTER TABLE personas ADD COLUMN ocean_agreeableness     INTEGER DEFAULT 50',
+    'ALTER TABLE personas ADD COLUMN ocean_neuroticism       INTEGER DEFAULT 50',
+    'ALTER TABLE personas ADD COLUMN location      TEXT',
+    'ALTER TABLE personas ADD COLUMN usual_places  TEXT',
+    'ALTER TABLE personas ADD COLUMN daily_routine TEXT',
+    'ALTER TABLE personas ADD COLUMN interests     TEXT',
+    'ALTER TABLE personas ADD COLUMN likes         TEXT',
+    'ALTER TABLE personas ADD COLUMN dislikes      TEXT',
+    'ALTER TABLE personas ADD COLUMN context_notes TEXT',
   ]
-  for (const col of oceanCols) {
-    try {
-      db.exec(`ALTER TABLE personas ADD COLUMN ${col} INTEGER DEFAULT 50`)
-    } catch {
-      // Column already exists — safe to ignore
-    }
+  for (const sql of migrations) {
+    try { db.exec(sql) } catch { /* column already exists — safe to ignore */ }
   }
 
   return db

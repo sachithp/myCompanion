@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Camera, Plus, X, Loader } from 'lucide-react'
-import { getPersona, updatePersona, addMemory, deleteMemory, uploadPhoto } from '../api'
+import { getPersona, updatePersona, addMemory, deleteMemory, addRelation, deleteRelation, uploadPhoto } from '../api'
 import OceanSliders from '../components/OceanSliders'
+import RelationsEditor from '../components/RelationsEditor'
+import LifeContextEditor from '../components/LifeContextEditor'
 
 export default function EditPersona() {
   const { id } = useParams()
@@ -20,10 +22,16 @@ export default function EditPersona() {
     ocean_agreeableness:     50,
     ocean_neuroticism:       50,
   })
+  const [lifeContext, setLifeContext] = useState({
+    location: '', usual_places: '', daily_routine: '',
+    interests: [], likes: [], dislikes: [],
+    context_notes: '',
+  })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [memories, setMemories] = useState([])
   const [memoryDraft, setMemoryDraft] = useState({ title: '', content: '' })
+  const [relations, setRelations] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -47,6 +55,16 @@ export default function EditPersona() {
         })
         if (p.photo_path) setPhotoPreview(p.photo_path)
         setMemories(p.memories || [])
+        setRelations(p.relations || [])
+        setLifeContext({
+          location:      p.location      || '',
+          usual_places:  p.usual_places  || '',
+          daily_routine: p.daily_routine || '',
+          interests:     p.interests     || [],
+          likes:         p.likes         || [],
+          dislikes:      p.dislikes      || [],
+          context_notes: p.context_notes || '',
+        })
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false))
@@ -61,6 +79,17 @@ export default function EditPersona() {
 
   function handleOceanChange(key, value) {
     setOcean((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleAddRelation(draft) {
+    const res = await addRelation(id, draft)
+    setRelations((prev) => [...prev, res.data])
+  }
+
+  async function handleDeleteRelation(relationId) {
+    if (!confirm('Remove this person?')) return
+    await deleteRelation(id, relationId)
+    setRelations((prev) => prev.filter((r) => r.id !== relationId))
   }
 
   async function handleAddMemory() {
@@ -96,7 +125,7 @@ export default function EditPersona() {
         const uploadRes = await uploadPhoto(photoFile)
         photo_path = uploadRes.data.path
       }
-      await updatePersona(id, { ...form, ...ocean, photo_path })
+      await updatePersona(id, { ...form, ...ocean, ...lifeContext, photo_path })
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong. Please try again.')
@@ -161,6 +190,19 @@ export default function EditPersona() {
           </div>
         </div>
 
+        {/* ── Life & context ───────────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their life &amp; world</h2>
+          <p className="text-warm-400 text-xs mb-6">
+            The more factual detail you add here, the more grounded the conversation will be.
+            The AI will only reference what you record — it will never invent details about their life.
+          </p>
+          <LifeContextEditor
+            values={lifeContext}
+            onChange={(key, val) => setLifeContext((prev) => ({ ...prev, [key]: val }))}
+          />
+        </div>
+
         {/* ── Personality (OCEAN) ───────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their personality</h2>
@@ -193,6 +235,21 @@ export default function EditPersona() {
           <textarea className="textarea h-40" value={form.past_conversations}
             placeholder="Paste messages, letters, or phrases they used…"
             onChange={(e) => setForm({ ...form, past_conversations: e.target.value })} />
+        </div>
+
+        {/* ── Family & Connections ─────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Family &amp; connections</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Add the people both of you know — family members, friends, colleagues.
+            The AI will use these names and relationships naturally in conversation.
+          </p>
+          <RelationsEditor
+            personaName={form.name || 'them'}
+            relations={relations}
+            onAdd={handleAddRelation}
+            onDelete={handleDeleteRelation}
+          />
         </div>
 
         {/* ── Cherished memories ────────────────────────────────────────── */}

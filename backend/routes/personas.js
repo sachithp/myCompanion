@@ -6,6 +6,21 @@ const { getDb } = require('../database/db')
 
 const router = express.Router()
 
+// interests is stored as a JSON string in SQLite; parse it on the way out
+function parseInterests(raw) {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+function withInterests(p) {
+  if (!p) return p
+  return {
+    ...p,
+    interests: parseInterests(p.interests),
+    likes:     parseInterests(p.likes),
+    dislikes:  parseInterests(p.dislikes),
+  }
+}
+
 // GET /api/personas — list all
 router.get('/', (req, res) => {
   const db = getDb()
@@ -16,7 +31,7 @@ router.get('/', (req, res) => {
     GROUP BY p.id
     ORDER BY p.updated_at DESC
   `).all()
-  res.json(personas)
+  res.json(personas.map(withInterests))
 })
 
 // POST /api/personas — create
@@ -26,6 +41,7 @@ router.post('/', (req, res) => {
     name, relationship, description, past_conversations, photo_path,
     ocean_openness, ocean_conscientiousness, ocean_extraversion,
     ocean_agreeableness, ocean_neuroticism,
+    location, usual_places, daily_routine, interests, likes, dislikes, context_notes,
   } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' })
 
@@ -34,17 +50,23 @@ router.post('/', (req, res) => {
     INSERT INTO personas (
       id, name, relationship, description, past_conversations, photo_path,
       ocean_openness, ocean_conscientiousness, ocean_extraversion,
-      ocean_agreeableness, ocean_neuroticism
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ocean_agreeableness, ocean_neuroticism,
+      location, usual_places, daily_routine, interests, likes, dislikes, context_notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, name.trim(), relationship || null, description || null,
     past_conversations || null, photo_path || null,
     ocean_openness ?? 50, ocean_conscientiousness ?? 50, ocean_extraversion ?? 50,
     ocean_agreeableness ?? 50, ocean_neuroticism ?? 50,
+    location || null, usual_places || null, daily_routine || null,
+    interests?.length ? JSON.stringify(interests) : null,
+    likes?.length     ? JSON.stringify(likes)     : null,
+    dislikes?.length  ? JSON.stringify(dislikes)  : null,
+    context_notes || null,
   )
 
   const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(id)
-  res.status(201).json(persona)
+  res.status(201).json(withInterests(persona))
 })
 
 // POST /api/personas/import — create persona from exported JSON
@@ -81,8 +103,9 @@ router.post('/import', (req, res) => {
     INSERT INTO personas (
       id, name, relationship, description, past_conversations, photo_path,
       ocean_openness, ocean_conscientiousness, ocean_extraversion,
-      ocean_agreeableness, ocean_neuroticism
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ocean_agreeableness, ocean_neuroticism,
+      location, usual_places, daily_routine, interests, likes, dislikes, context_notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     persona.name.trim(),
@@ -95,6 +118,13 @@ router.post('/import', (req, res) => {
     persona.ocean_extraversion ?? 50,
     persona.ocean_agreeableness ?? 50,
     persona.ocean_neuroticism ?? 50,
+    persona.location || null,
+    persona.usual_places || null,
+    persona.daily_routine || null,
+    persona.interests?.length ? JSON.stringify(persona.interests) : null,
+    persona.likes?.length     ? JSON.stringify(persona.likes)     : null,
+    persona.dislikes?.length  ? JSON.stringify(persona.dislikes)  : null,
+    persona.context_notes || null,
   )
 
   if (Array.isArray(memories)) {
@@ -107,6 +137,16 @@ router.post('/import', (req, res) => {
     }
   }
 
+  if (Array.isArray(relations)) {
+    for (const r of relations) {
+      if (r.name?.trim()) {
+        db.prepare(
+          'INSERT INTO persona_relations (id, persona_id, name, relation_to_persona, relation_to_user, notes) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(uuidv4(), id, r.name.trim(), r.relation_to_persona || null, r.relation_to_user || null, r.notes || null)
+      }
+    }
+  }
+
   const newPersona = db.prepare(`
     SELECT p.*, COUNT(m.id) as memory_count
     FROM personas p LEFT JOIN memory_cards m ON m.persona_id = p.id
@@ -115,7 +155,7 @@ router.post('/import', (req, res) => {
   res.status(201).json(newPersona)
 })
 
-// GET /api/personas/:id — get with memories
+// GET /api/personas/:id — get with memories and relations
 router.get('/:id', (req, res) => {
   const db = getDb()
   const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(req.params.id)
@@ -125,7 +165,11 @@ router.get('/:id', (req, res) => {
     'SELECT * FROM memory_cards WHERE persona_id = ? ORDER BY created_at DESC'
   ).all(req.params.id)
 
-  res.json({ ...persona, memories })
+  const relations = db.prepare(
+    'SELECT * FROM persona_relations WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id)
+
+  res.json({ ...withInterests(persona), memories, relations })
 })
 
 // PUT /api/personas/:id — update
@@ -138,6 +182,7 @@ router.put('/:id', (req, res) => {
     name, relationship, description, past_conversations, photo_path,
     ocean_openness, ocean_conscientiousness, ocean_extraversion,
     ocean_agreeableness, ocean_neuroticism,
+    location, usual_places, daily_routine, interests, likes, dislikes, context_notes,
   } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' })
 
@@ -146,6 +191,8 @@ router.put('/:id', (req, res) => {
     SET name = ?, relationship = ?, description = ?, past_conversations = ?, photo_path = ?,
         ocean_openness = ?, ocean_conscientiousness = ?, ocean_extraversion = ?,
         ocean_agreeableness = ?, ocean_neuroticism = ?,
+        location = ?, usual_places = ?, daily_routine = ?, interests = ?,
+        likes = ?, dislikes = ?, context_notes = ?,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(
@@ -153,6 +200,11 @@ router.put('/:id', (req, res) => {
     past_conversations || null, photo_path || null,
     ocean_openness ?? 50, ocean_conscientiousness ?? 50, ocean_extraversion ?? 50,
     ocean_agreeableness ?? 50, ocean_neuroticism ?? 50,
+    location || null, usual_places || null, daily_routine || null,
+    interests?.length ? JSON.stringify(interests) : null,
+    likes?.length     ? JSON.stringify(likes)     : null,
+    dislikes?.length  ? JSON.stringify(dislikes)  : null,
+    context_notes || null,
     req.params.id,
   )
 
@@ -160,7 +212,7 @@ router.put('/:id', (req, res) => {
   const memories = db.prepare(
     'SELECT * FROM memory_cards WHERE persona_id = ? ORDER BY created_at DESC'
   ).all(req.params.id)
-  res.json({ ...persona, memories })
+  res.json({ ...withInterests(persona), memories })
 })
 
 // DELETE /api/personas/:id
@@ -202,6 +254,33 @@ router.delete('/:personaId/memories/:memoryId', (req, res) => {
   res.json({ success: true })
 })
 
+// POST /api/personas/:id/relations — add a relation
+router.post('/:id/relations', (req, res) => {
+  const db = getDb()
+  const { name, relation_to_persona, relation_to_user, notes } = req.body
+  if (!name?.trim()) return res.status(400).json({ error: 'Name is required' })
+
+  const persona = db.prepare('SELECT id FROM personas WHERE id = ?').get(req.params.id)
+  if (!persona) return res.status(404).json({ error: 'Persona not found' })
+
+  const id = uuidv4()
+  db.prepare(
+    'INSERT INTO persona_relations (id, persona_id, name, relation_to_persona, relation_to_user, notes) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, req.params.id, name.trim(), relation_to_persona || null, relation_to_user || null, notes || null)
+
+  const relation = db.prepare('SELECT * FROM persona_relations WHERE id = ?').get(id)
+  res.status(201).json(relation)
+})
+
+// DELETE /api/personas/:personaId/relations/:relationId
+router.delete('/:personaId/relations/:relationId', (req, res) => {
+  const db = getDb()
+  db.prepare(
+    'DELETE FROM persona_relations WHERE id = ? AND persona_id = ?'
+  ).run(req.params.relationId, req.params.personaId)
+  res.json({ success: true })
+})
+
 // GET /api/personas/:id/conversations
 router.get('/:id/conversations', (req, res) => {
   const db = getDb()
@@ -219,6 +298,10 @@ router.get('/:id/export', (req, res) => {
 
   const memories = db.prepare(
     'SELECT title, content FROM memory_cards WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id)
+
+  const relations = db.prepare(
+    'SELECT name, relation_to_persona, relation_to_user, notes FROM persona_relations WHERE persona_id = ? ORDER BY created_at ASC'
   ).all(req.params.id)
 
   let photoData = null
@@ -252,8 +335,16 @@ router.get('/:id/export', (req, res) => {
       ocean_extraversion: persona.ocean_extraversion,
       ocean_agreeableness: persona.ocean_agreeableness,
       ocean_neuroticism: persona.ocean_neuroticism,
+      location: persona.location,
+      usual_places: persona.usual_places,
+      daily_routine: persona.daily_routine,
+      interests: parseInterests(persona.interests),
+      likes:     parseInterests(persona.likes),
+      dislikes:  parseInterests(persona.dislikes),
+      context_notes: persona.context_notes,
     },
     memories,
+    relations,
   }
 
   const safeName = persona.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()

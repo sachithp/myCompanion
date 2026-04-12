@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Send, RotateCcw, Heart, BookOpen, ChevronDown, ChevronRight, Loader } from 'lucide-react'
+import { ArrowLeft, Send, RotateCcw, Heart, BookOpen, Loader, Zap } from 'lucide-react'
 import { getPersona, getConversations, createConversation, getMessages } from '../api'
+import EventPanel from '../components/EventPanel'
 
 const AVATAR_COLORS = ['#C4956A', '#A87040', '#8B5E3C', '#D4A5A5', '#6B8E6B', '#7A8BB5']
 
@@ -12,12 +13,7 @@ function getColor(name) {
 }
 
 function getInitials(name) {
-  return (name || '?')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
+  return (name || '?').split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
 function Avatar({ persona, size = 'md' }) {
@@ -37,7 +33,29 @@ function Avatar({ persona, size = 'md' }) {
   )
 }
 
+// Detect [Event: ...] messages and render as a context card instead of a chat bubble
+function isEventMessage(content) {
+  return typeof content === 'string' && content.startsWith('[Event: ') && content.endsWith(']')
+}
+function parseEventText(content) {
+  return content.slice(8, -1)  // strip '[Event: ' prefix and ']' suffix
+}
+
+function EventCard({ content }) {
+  return (
+    <div className="flex items-center justify-center gap-2 py-1 message-in">
+      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200
+                      rounded-full px-4 py-1.5 text-xs text-amber-700 max-w-sm">
+        <Zap size={11} className="flex-shrink-0 text-amber-500 fill-amber-300" />
+        <span className="italic">{parseEventText(content)}</span>
+      </div>
+    </div>
+  )
+}
+
 function MessageBubble({ msg, persona }) {
+  if (isEventMessage(msg.content)) return <EventCard content={msg.content} />
+
   const isUser = msg.role === 'user'
   return (
     <div className={`flex items-end gap-2.5 message-in ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -82,26 +100,25 @@ export default function Chat() {
   const { id: personaId } = useParams()
   const navigate = useNavigate()
 
-  const [persona, setPersona] = useState(null)
+  const [persona, setPersona]               = useState(null)
   const [conversationId, setConversationId] = useState(null)
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [messages, setMessages]             = useState([])
+  const [input, setInput]                   = useState('')
+  const [isStreaming, setIsStreaming]        = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [showMemories, setShowMemories] = useState(false)
+  const [loading, setLoading]               = useState(true)
+  const [error, setError]                   = useState('')
+  const [showMemories, setShowMemories]     = useState(false)
+  const [showEventPanel, setShowEventPanel] = useState(false)
 
-  const bottomRef = useRef(null)
-  const inputRef = useRef(null)
+  const bottomRef  = useRef(null)
+  const inputRef   = useRef(null)
   const textareaRef = useRef(null)
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
-  // Load persona + conversation
   useEffect(() => {
     async function init() {
       try {
@@ -137,12 +154,12 @@ export default function Chat() {
       const newConvo = await createConversation(personaId)
       setConversationId(newConvo.data.id)
       setMessages([])
+      setShowEventPanel(false)
     } catch {
       alert('Could not start a new conversation.')
     }
   }
 
-  // Auto-resize textarea
   function handleInputChange(e) {
     setInput(e.target.value)
     const ta = e.target
@@ -150,27 +167,21 @@ export default function Chat() {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
   }
 
-  async function sendMessage() {
-    const text = input.trim()
-    if (!text || isStreaming) return
-
-    setInput('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    setMessages((prev) => [...prev, { id: Date.now(), role: 'user', content: text }])
+  // ── Shared SSE stream reader ─────────────────────────────────────────────
+  async function doStream(url, displayMessage) {
     setIsStreaming(true)
     setStreamingContent('')
     setError('')
 
     try {
-      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: displayMessage }),
       })
-
       if (!response.ok) throw new Error('Network error')
 
-      const reader = response.body.getReader()
+      const reader  = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
       let fullContent = ''
@@ -213,6 +224,31 @@ export default function Chat() {
     }
   }
 
+  // ── Send a regular user message ──────────────────────────────────────────
+  async function sendMessage() {
+    const text = input.trim()
+    if (!text || isStreaming) return
+
+    setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    setMessages((prev) => [...prev, { id: Date.now(), role: 'user', content: text }])
+    setShowEventPanel(false)
+
+    await doStream(`/api/conversations/${conversationId}/messages`, text)
+  }
+
+  // ── Inject a live event ──────────────────────────────────────────────────
+  async function sendEvent(eventText) {
+    if (isStreaming || !eventText.trim()) return
+    setShowEventPanel(false)
+    // Add the event card to the local message list immediately
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now(), role: 'user', content: `[Event: ${eventText.trim()}]` },
+    ])
+    await doStream(`/api/conversations/${conversationId}/events`, eventText.trim())
+  }
+
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -243,10 +279,12 @@ export default function Chat() {
   }
 
   const hasMemories = persona?.memories?.length > 0
+  const personaFirstName = persona?.name?.split(' ')[0] || ''
 
   return (
     <div className="h-screen bg-warm-50 flex flex-col">
-      {/* Header */}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-warm-100 shadow-sm flex-shrink-0">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -300,30 +338,30 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Messages area */}
+      {/* ── Messages ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+
           {messages.length === 0 && !isStreaming && (
             <div className="text-center py-12">
               <div className="w-14 h-14 mx-auto mb-4">
                 <Avatar persona={persona} size="lg" />
               </div>
               <p className="font-serif text-warm-600 text-lg">
-                Say hello to {persona?.name}
+                Say hello to {personaFirstName}
               </p>
               <p className="text-warm-400 text-sm mt-1">
                 Start the conversation — they're here with you.
               </p>
-
-              {/* Conversation starters */}
               <div className="mt-6 flex flex-wrap gap-2 justify-center max-w-sm mx-auto">
                 {[
-                  `I've been thinking about you, ${persona?.name?.split(' ')[0]}…`,
+                  `I've been thinking about you, ${personaFirstName}…`,
                   'How are you doing today?',
                   'I miss you so much.',
                   'Can we talk for a while?',
                 ].map((starter) => (
-                  <button key={starter} onClick={() => { setInput(starter); inputRef.current?.focus() }}
+                  <button key={starter}
+                    onClick={() => { setInput(starter); inputRef.current?.focus() }}
                     className="bg-white border border-warm-200 rounded-full px-3 py-1.5 text-xs
                                text-warm-600 hover:bg-warm-100 hover:border-warm-300 transition-colors">
                     {starter}
@@ -349,38 +387,67 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Input area */}
+      {/* ── Input area ─────────────────────────────────────────────────── */}
       <div className="bg-white border-t border-warm-100 flex-shrink-0">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="flex items-end gap-3 bg-warm-50 rounded-2xl border border-warm-200
-                          focus-within:border-warm-400 focus-within:ring-2 focus-within:ring-warm-200
-                          transition-all px-4 py-2.5">
-            <textarea
-              ref={(el) => { textareaRef.current = el; inputRef.current = el }}
-              rows={1}
-              className="flex-1 bg-transparent border-none outline-none resize-none text-sm
-                         text-warm-900 placeholder-warm-400 leading-relaxed"
-              placeholder={`Message ${persona?.name?.split(' ')[0] || ''}…`}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              disabled={isStreaming}
+        <div className="max-w-3xl mx-auto">
+
+          {/* Event panel — slides in above the input row */}
+          {showEventPanel && (
+            <EventPanel
+              onAdd={sendEvent}
+              onClose={() => setShowEventPanel(false)}
             />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isStreaming}
-              className="flex-shrink-0 w-8 h-8 bg-warm-600 hover:bg-warm-700 disabled:bg-warm-200
-                         rounded-xl flex items-center justify-center transition-colors mb-0.5"
-            >
-              {isStreaming
-                ? <Loader size={14} className="text-white animate-spin" />
-                : <Send size={14} className="text-white" />
-              }
-            </button>
+          )}
+
+          <div className="px-4 py-3">
+            <div className="flex items-end gap-2 bg-warm-50 rounded-2xl border border-warm-200
+                            focus-within:border-warm-400 focus-within:ring-2 focus-within:ring-warm-200
+                            transition-all px-4 py-2.5">
+              {/* ⚡ Event toggle */}
+              <button
+                type="button"
+                onClick={() => setShowEventPanel((v) => !v)}
+                disabled={isStreaming}
+                title="Add a live event"
+                className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center
+                            transition-colors mb-0.5 disabled:opacity-40
+                            ${showEventPanel
+                              ? 'bg-amber-100 text-amber-600 hover:bg-amber-200'
+                              : 'text-warm-400 hover:text-warm-600 hover:bg-warm-100'
+                            }`}
+              >
+                <Zap size={14} className={showEventPanel ? 'fill-amber-400' : ''} />
+              </button>
+
+              <textarea
+                ref={(el) => { textareaRef.current = el; inputRef.current = el }}
+                rows={1}
+                className="flex-1 bg-transparent border-none outline-none resize-none text-sm
+                           text-warm-900 placeholder-warm-400 leading-relaxed"
+                placeholder={`Message ${personaFirstName}…`}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                disabled={isStreaming}
+              />
+
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || isStreaming}
+                className="flex-shrink-0 w-8 h-8 bg-warm-600 hover:bg-warm-700 disabled:bg-warm-200
+                           rounded-xl flex items-center justify-center transition-colors mb-0.5"
+              >
+                {isStreaming
+                  ? <Loader size={14} className="text-white animate-spin" />
+                  : <Send size={14} className="text-white" />
+                }
+              </button>
+            </div>
+
+            <p className="text-center text-warm-300 text-xs mt-2">
+              Press Enter to send · Shift+Enter for new line · ⚡ to add a live event
+            </p>
           </div>
-          <p className="text-center text-warm-300 text-xs mt-2">
-            Press Enter to send · Shift+Enter for new line
-          </p>
         </div>
       </div>
     </div>

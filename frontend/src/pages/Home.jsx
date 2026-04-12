@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, UserPlus, Upload, X, BookOpen, AlertCircle } from 'lucide-react'
+import { Heart, UserPlus, Upload, X, BookOpen, AlertCircle, Users, MapPin, Tag } from 'lucide-react'
 import PersonaCard from '../components/PersonaCard'
 import { getPersonas, importPersona } from '../api'
 
@@ -274,13 +274,42 @@ export default function Home() {
               </p>
             )}
 
-            {importPreview.memories?.length > 0 && (
-              <div className="flex items-center gap-1.5 text-warm-400 text-xs mb-5">
-                <BookOpen size={12} />
-                <span>
-                  {importPreview.memories.length}{' '}
-                  {importPreview.memories.length === 1 ? 'memory' : 'memories'} included
+            {/* Location */}
+            {importPreview.persona.location && (
+              <div className="flex items-center gap-1.5 text-warm-500 text-xs mb-3">
+                <MapPin size={12} className="flex-shrink-0" />
+                <span>{importPreview.persona.location}</span>
+              </div>
+            )}
+
+            {/* Interests */}
+            {importPreview.persona.interests?.length > 0 && (
+              <div className="flex items-start gap-1.5 text-warm-500 text-xs mb-4">
+                <Tag size={12} className="flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  {importPreview.persona.interests.slice(0, 6).join(', ')}
+                  {importPreview.persona.interests.length > 6 && (
+                    <span className="text-warm-400"> +{importPreview.persona.interests.length - 6} more</span>
+                  )}
                 </span>
+              </div>
+            )}
+
+            {/* Counts row */}
+            {(importPreview.memories?.length > 0 || importPreview.relations?.length > 0) && (
+              <div className="flex items-center gap-4 text-warm-400 text-xs mb-5">
+                {importPreview.memories?.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen size={12} />
+                    <span>{importPreview.memories.length} {importPreview.memories.length === 1 ? 'memory' : 'memories'}</span>
+                  </div>
+                )}
+                {importPreview.relations?.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Users size={12} />
+                    <span>{importPreview.relations.length} {importPreview.relations.length === 1 ? 'connection' : 'connections'}</span>
+                  </div>
+                )}
               </div>
             )}
 

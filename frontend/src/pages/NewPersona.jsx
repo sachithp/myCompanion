@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Camera, Plus, X } from 'lucide-react'
-import { createPersona, addMemory, uploadPhoto } from '../api'
+import { createPersona, addMemory, addRelation, uploadPhoto } from '../api'
 import OceanSliders from '../components/OceanSliders'
+import RelationsEditor from '../components/RelationsEditor'
+import LifeContextEditor from '../components/LifeContextEditor'
 
 const DEFAULT_OCEAN = {
   ocean_openness:          50,
@@ -23,10 +25,16 @@ export default function NewPersona() {
     past_conversations: '',
   })
   const [ocean, setOcean] = useState(DEFAULT_OCEAN)
+  const [lifeContext, setLifeContext] = useState({
+    location: '', usual_places: '', daily_routine: '',
+    interests: [], likes: [], dislikes: [],
+    context_notes: '',
+  })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [memories, setMemories] = useState([])
   const [memoryDraft, setMemoryDraft] = useState({ title: '', content: '' })
+  const [relations, setRelations] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -64,11 +72,14 @@ export default function NewPersona() {
         photo_path = uploadRes.data.path
       }
 
-      const personaRes = await createPersona({ ...form, ...ocean, photo_path })
+      const personaRes = await createPersona({ ...form, ...ocean, ...lifeContext, photo_path })
       const personaId = personaRes.data.id
 
       for (const mem of memories) {
         await addMemory(personaId, { title: mem.title, content: mem.content })
+      }
+      for (const rel of relations) {
+        await addRelation(personaId, rel)
       }
 
       navigate('/')
@@ -138,6 +149,19 @@ export default function NewPersona() {
           </div>
         </div>
 
+        {/* ── Life & context ───────────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their life &amp; world</h2>
+          <p className="text-warm-400 text-xs mb-6">
+            The more factual detail you add here, the more grounded the conversation will be.
+            The AI will only reference what you record — it will never invent details about their life.
+          </p>
+          <LifeContextEditor
+            values={lifeContext}
+            onChange={(key, val) => setLifeContext((prev) => ({ ...prev, [key]: val }))}
+          />
+        </div>
+
         {/* ── Personality (OCEAN) ───────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Their personality</h2>
@@ -177,6 +201,26 @@ export default function NewPersona() {
             placeholder={"e.g. \"Don't forget to eat, sweetheart.\" / \"I'm so proud of you, no matter what.\" / Paste a letter or message here\u2026"}
             value={form.past_conversations}
             onChange={(e) => setForm({ ...form, past_conversations: e.target.value })}
+          />
+        </div>
+
+        {/* ── Family & Connections ─────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Family &amp; connections</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Add the people both of you know — family members, friends, colleagues.
+            The AI will use these names and relationships naturally in conversation.
+          </p>
+          <RelationsEditor
+            personaName={form.name || 'them'}
+            relations={relations}
+            onAdd={(draft) => {
+              const entry = { ...draft, _draftId: Date.now() }
+              setRelations((prev) => [...prev, entry])
+            }}
+            onDelete={(draftId) =>
+              setRelations((prev) => prev.filter((r) => r._draftId !== draftId))
+            }
           />
         </div>
 

@@ -13,8 +13,11 @@ const conversationsRouter = require('./routes/conversations')
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads', 'photos')
+// In production (Railway), DATA_DIR points to the mounted persistent volume.
+// In development it falls back to the local backend directory.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname)
+const uploadsDir = path.join(DATA_DIR, 'uploads', 'photos')
+
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
 }
@@ -36,13 +39,15 @@ const upload = multer({
   },
 })
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }))
-app.use(express.json())
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+}))
+app.use(express.json({ limit: '10mb' })) // allow base64 photos in import payload
+app.use('/uploads', express.static(path.join(DATA_DIR, 'uploads')))
 
 initDb()
 
-// Routes
+// API routes
 app.use('/api/personas', personasRouter)
 app.use('/api/conversations', conversationsRouter)
 
@@ -52,6 +57,17 @@ app.post('/api/upload/photo', upload.single('photo'), (req, res) => {
   res.json({ path: `/uploads/photos/${req.file.filename}` })
 })
 
+// Serve the built React frontend in production
+const frontendDist = path.join(__dirname, '..', 'frontend', 'dist')
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist))
+  // SPA fallback — let React Router handle all non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'))
+  })
+}
+
 app.listen(PORT, () => {
   console.log(`myCompanion backend running on http://localhost:${PORT}`)
+  console.log(`Data directory: ${DATA_DIR}`)
 })

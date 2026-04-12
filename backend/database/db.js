@@ -2,7 +2,11 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const fs = require('fs')
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'companion.db')
+// In production (Railway), DATA_DIR points to the mounted persistent volume.
+// In development it falls back to the local backend/data directory.
+const DB_PATH = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, 'companion.db')
+  : path.join(__dirname, '..', 'data', 'companion.db')
 
 let db
 

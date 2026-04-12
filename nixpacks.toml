@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["npm ci --prefix backend"]
+
+[phases.build]
+cmds = ["npm ci --prefix frontend && npm run build --prefix frontend"]
+
+[start]
+cmd = "node backend/server.js"

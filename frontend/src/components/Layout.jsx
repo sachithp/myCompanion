@@ -15,7 +15,7 @@ export default function Layout() {
                             group-hover:bg-warm-700 transition-colors">
               <Heart size={15} className="text-white fill-white" />
             </div>
-            <span className="font-serif text-xl text-warm-800 font-semibold">myCompanion</span>
+            <span className="font-serif text-xl text-warm-800 font-semibold">My Companion</span>
           </Link>
 
           {isHome && (

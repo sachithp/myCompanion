@@ -5,7 +5,6 @@ const { getDb } = require('../database/db')
 
 const router = express.Router()
 require('dotenv').config({ override: true })
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // Returns a conversation only when its persona belongs to the requesting user
 function getConversationForUser(db, conversationId, userId) {
@@ -266,6 +265,12 @@ async function streamResponse(res, db, conversation, storedContent, firstUserTur
 
   const systemPrompt = buildSystemPrompt(persona, memories, relations, knowledgeSources, conversation.current_mode || 'normal', modeBehaviors)
 
+  // Prefer the user's own Anthropic key; fall back to the server-level key
+  const userRow  = db.prepare('SELECT anthropic_api_key, preferred_model FROM users WHERE id = ?').get(persona.user_id)
+  const apiKey   = userRow?.anthropic_api_key || process.env.ANTHROPIC_API_KEY
+  const model    = userRow?.preferred_model   || 'claude-opus-4-6'
+  const client   = new Anthropic({ apiKey })
+
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -275,7 +280,7 @@ async function streamResponse(res, db, conversation, storedContent, firstUserTur
     let fullResponse = ''
 
     const stream = client.messages.stream({
-      model: 'claude-opus-4-6',
+      model,
       max_tokens: 1024,
       system: systemPrompt,
       messages: history.map(m => ({ role: m.role, content: m.content })),

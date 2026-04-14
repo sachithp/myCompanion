@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Heart, LogOut, ChevronDown } from 'lucide-react'
+import { Heart, LogOut, ChevronDown, Settings } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 function UserMenu({ user, onLogout }) {
@@ -50,6 +50,17 @@ function UserMenu({ user, onLogout }) {
             <p className="text-sm font-medium text-warm-800 truncate">{user.name}</p>
             <p className="text-xs text-warm-400 truncate">{user.email}</p>
           </div>
+          {/* Settings */}
+          <Link
+            to="/settings"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-4 py-2.5
+                       text-sm text-warm-600 hover:bg-warm-50 hover:text-warm-800
+                       transition-colors"
+          >
+            <Settings size={14} />
+            Settings
+          </Link>
           {/* Sign out */}
           <button
             onClick={() => { setOpen(false); onLogout() }}

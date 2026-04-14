@@ -107,6 +107,8 @@ function initDb() {
 
   // Migrate existing databases — add new columns if not yet present
   const migrations = [
+    'ALTER TABLE users ADD COLUMN anthropic_api_key TEXT',
+    'ALTER TABLE users ADD COLUMN preferred_model TEXT DEFAULT \'claude-opus-4-6\'',
     'ALTER TABLE personas ADD COLUMN user_id TEXT REFERENCES users(id)',
     'ALTER TABLE conversations ADD COLUMN current_mode TEXT DEFAULT \'normal\'',
     'ALTER TABLE personas ADD COLUMN ocean_openness          INTEGER DEFAULT 50',

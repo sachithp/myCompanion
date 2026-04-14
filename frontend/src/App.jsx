@@ -7,6 +7,7 @@ import EditPersona  from './pages/EditPersona'
 import Chat         from './pages/Chat'
 import Login        from './pages/Login'
 import AuthCallback from './pages/AuthCallback'
+import Settings     from './pages/Settings'
 import { Loader } from 'lucide-react'
 
 // Redirects unauthenticated users to /login; shows a spinner while the
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="/"                    element={<Home />} />
         <Route path="/personas/new"        element={<NewPersona />} />
         <Route path="/personas/:id/edit"   element={<EditPersona />} />
+        <Route path="/settings"            element={<Settings />} />
       </Route>
 
       {/* Chat has its own full-screen layout but is still protected */}

@@ -12,6 +12,7 @@ const { initDb } = require('./database/db')
 const personasRouter      = require('./routes/personas')
 const conversationsRouter = require('./routes/conversations')
 const authRouter          = require('./routes/auth')
+const settingsRouter      = require('./routes/settings')
 const requireAuth         = require('./middleware/auth')
 
 const app  = express()
@@ -69,6 +70,7 @@ initDb()
 app.use('/api/auth',          authRouter)
 app.use('/api/personas',      requireAuth, personasRouter)
 app.use('/api/conversations', requireAuth, conversationsRouter)
+app.use('/api/settings',      requireAuth, settingsRouter)
 
 // Photo upload — protected
 app.post('/api/upload/photo', requireAuth, upload.single('photo'), (req, res) => {

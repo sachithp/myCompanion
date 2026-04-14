@@ -53,6 +53,12 @@ export const exportPersona = (id, name) => {
   document.body.removeChild(a)
 }
 
+// Settings / API key + model
+export const getSettings  = ()        => api.get('/settings')
+export const saveApiKey   = (apiKey)  => api.put('/settings/api-key', { apiKey })
+export const removeApiKey = ()        => api.delete('/settings/api-key')
+export const saveModel    = (model)   => api.put('/settings/model', { model })
+
 // Photo upload
 export const uploadPhoto = (file) => {
   const formData = new FormData()

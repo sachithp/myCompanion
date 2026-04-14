@@ -20,6 +20,9 @@ Users create rich profiles of their loved ones — calibrating personality scien
 - **Streaming AI conversations** — Responses stream token by token via Server-Sent Events, just like a real conversation.
 - **Conversation history** — All chats are saved and can be resumed. Start a fresh conversation any time.
 - **Import & export personas** — Export any persona as a fully self-contained `.json` file — photo, OCEAN scores, life context, likes, dislikes, relations, memories, knowledge sources, mood behaviours, and sample words all included. Import on any instance with a full preview before confirming.
+- **Google OAuth login** — Sign in with your Google account. Every user has a private, isolated set of companions — no one else can see your conversations or profiles.
+- **Per-user Anthropic API key** — Optionally supply your own `sk-ant-…` key via the Settings page. The app uses your personal Anthropic quota for every conversation. Falls back to the server's shared key if none is set.
+- **Model selector** — Choose which Claude model powers your conversations: Opus (most expressive), Sonnet (balanced), or Haiku (fastest). Set per user in Settings; takes effect on the next message.
 - **Warm, accessible UI** — Designed for elderly and non-technical users. Soft warm palette, serif typography, clear layout.
 
 ---
@@ -32,16 +35,21 @@ flowchart TB
 
     subgraph FE["Frontend — React SPA (Vite + Tailwind CSS)"]
         subgraph FE_UI["Pages & Components"]
+            LOGIN["Login\nGoogle OAuth button"]
             HOME["Home\npersona grid, import preview"]
             FORM["New / Edit Persona\nOceanSliders, LifeContextEditor\nRelationsEditor, KnowledgeEditor\nModeBehaviorsEditor"]
             CHAT["Chat\nMood Picker, EventPanel\nStreaming bubbles"]
+            SETT["Settings\nModel picker, API key"]
         end
+        AUTH_CTX["AuthContext\nJWT · useAuth hook · ProtectedRoute"]
         APIJS["api.js — Axios + native Fetch"]
     end
 
     subgraph BE["Backend — Node.js / Express"]
         SRV["server.js\nmiddleware, photo upload, static serve"]
         subgraph RT["Routes"]
+            AR["auth.js\nGoogle OAuth · JWT sign · /me"]
+            SR["settings.js\nAPI key · model preference"]
             PR["personas.js\nCRUD, memories, relations, knowledge\nmode-behaviors, import/export"]
             CR["conversations.js\nchat messages, live events"]
         end
@@ -49,32 +57,46 @@ flowchart TB
             SP1["1. OCEAN\nPersonality"] --> SP2["2. Mood Mode\n+ Behaviors"] --> SP3["3. Life\nContext"] --> SP4["4. Knowledge\nRefs"] --> SP5["5. Family +\nRelations"] --> SP6["6. Memories\n+ Words"]
         end
         DBJS["db.js — schema init + migration loop"]
+        MW["requireAuth middleware\nJWT verification"]
     end
 
     subgraph STORE["Storage"]
-        DB[("SQLite — companion.db\npersonas, memory_cards\npersona_relations, persona_knowledge\npersona_mode_behaviors\nconversations, messages")]
+        DB[("SQLite — companion.db\nusers · personas · memory_cards\npersona_relations · persona_knowledge\npersona_mode_behaviors\nconversations · messages")]
         FS[("File System\nuploads/photos")]
     end
 
     subgraph EXT["External Services"]
-        ANT["Anthropic API\nClaude Opus 4.6"]
+        GOOGLE["Google OAuth 2.0\nSign-in consent screen"]
+        ANT["Anthropic API\nClaude Opus / Sonnet / Haiku"]
         WEB["Web\nURL fetch for knowledge links"]
     end
 
+    User --> LOGIN
     User --> HOME
     User --> FORM
     User --> CHAT
+    User --> SETT
+    LOGIN -- "OAuth redirect" --> GOOGLE
+    GOOGLE -- "callback + JWT" --> AUTH_CTX
     HOME --> APIJS
     FORM --> APIJS
     CHAT --> APIJS
-    APIJS -- "HTTP REST" --> SRV
-    SRV --> PR
-    SRV --> CR
+    SETT --> APIJS
+    AUTH_CTX --> APIJS
+    APIJS -- "HTTP REST\n+ Bearer JWT" --> SRV
+    SRV --> MW
+    MW --> AR
+    MW --> SR
+    MW --> PR
+    MW --> CR
+    AR -- "find/create user" --> DBJS
+    SR --> DBJS
     PR --> DBJS --> DB
     CR --> DBJS
     SRV --> FS
     CR --> SP
-    CR -- "SDK + assembled prompt" --> ANT
+    SR -. "preferred model\n+ API key" .-> CR
+    CR -- "user key or server key\nchosen model" --> ANT
     ANT -- "token stream" --> CR
     CR -- "SSE" --> APIJS
     PR -- "fetch(url)" --> WEB
@@ -85,10 +107,10 @@ flowchart TB
     classDef ext fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
     classDef user fill:#f1f5f9,stroke:#64748b,color:#0f172a
 
-    class HOME,FORM,CHAT,APIJS fe
-    class SRV,PR,CR,DBJS,SP1,SP2,SP3,SP4,SP5,SP6 be
+    class LOGIN,HOME,FORM,CHAT,SETT,AUTH_CTX,APIJS fe
+    class SRV,MW,AR,SR,PR,CR,DBJS,SP1,SP2,SP3,SP4,SP5,SP6 be
     class DB,FS store
-    class ANT,WEB ext
+    class GOOGLE,ANT,WEB ext
     class User user
 ```
 
@@ -101,24 +123,33 @@ myCompanion/
 │   ├── server.js             Entry point — middleware, photo upload, serves built frontend
 │   ├── database/
 │   │   └── db.js             SQLite schema + automatic migration loop for all new tables/columns
+│   ├── middleware/
+│   │   └── auth.js           JWT verification middleware (requireAuth)
 │   ├── routes/
+│   │   ├── auth.js           Google OAuth strategy, JWT signing, /me endpoint
+│   │   ├── settings.js       API key (save/remove) + model preference endpoints
 │   │   ├── personas.js       Full CRUD, memory/relation/knowledge/mode-behavior/import/export endpoints
 │   │   └── conversations.js  Streaming chat + live events + system prompt builder (all layers)
 │   └── uploads/photos/       Uploaded persona photos (git-ignored)
 │
 └── frontend/                 React SPA (Vite)
     └── src/
-        ├── App.jsx            Router (react-router-dom v6)
+        ├── App.jsx            Router (react-router-dom v6) + ProtectedRoute
         ├── api.js             Axios client + all API helpers
+        ├── context/
+        │   └── AuthContext.jsx  Google auth state, JWT storage, useAuth hook
         ├── utils/
         │   └── modes.js       Shared mood mode definitions (emoji, label, hint, generic description)
         ├── pages/
+        │   ├── Login.jsx      Google sign-in page
+        │   ├── AuthCallback.jsx  Handles OAuth redirect, stores JWT, navigates home
         │   ├── Home.jsx       Persona grid, import button, full import preview modal
         │   ├── NewPersona.jsx Create persona — all sections, staged drafts
         │   ├── EditPersona.jsx Edit persona + live memory/relation/knowledge management
-        │   └── Chat.jsx       Full-screen streaming chat, mood picker, live event injection
+        │   ├── Chat.jsx       Full-screen streaming chat, mood picker, live event injection
+        │   └── Settings.jsx   Model selector + API key management
         └── components/
-            ├── Layout.jsx              Navbar + page wrapper
+            ├── Layout.jsx              Navbar (user menu with Settings link + sign out) + page wrapper
             ├── PersonaCard.jsx         Card with avatar, export/edit/delete actions
             ├── OceanSliders.jsx        Big Five sliders with gradient fill + live descriptions
             ├── LifeContextEditor.jsx   Location, places, interests, likes, dislikes, routine
@@ -142,7 +173,8 @@ myCompanion/
 | **Backend framework** | Express.js | Minimal, flexible Node.js server |
 | **Database** | SQLite (better-sqlite3) | Local, zero-config, synchronous — no database server needed |
 | **File uploads** | Multer | Simple multipart form handling for persona photos |
-| **AI model** | Claude Opus 4.6 | Anthropic's most expressive model — nuanced, emotionally warm responses |
+| **Authentication** | Passport.js + Google OAuth 2.0 | Familiar sign-in flow; stateless JWT for long-term sessions |
+| **AI model** | Claude Opus / Sonnet / Haiku | User-selectable; defaults to Opus for the richest, most expressive voice |
 | **AI streaming** | Anthropic Node.js SDK + SSE | Token-by-token streaming for a natural, real-time feel |
 | **Deployment** | Railway + Nixpacks | Single-service deploy; persistent volume for SQLite and uploads |
 | **Environment** | dotenv | API key and config management |
@@ -305,7 +337,7 @@ The app is configured for a single-service Railway deployment (backend serves th
 
 | Variable | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | `sk-ant-...` |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` (server fallback key) |
 | `DATA_DIR` | `/app/data` |
 | `NODE_ENV` | `production` |
 | `FRONTEND_URL` | `https://your-app.railway.app` |
@@ -331,6 +363,26 @@ My Companion uses **Google OAuth 2.0** for sign-in. The flow is:
 6. All persona and conversation data is **scoped to the authenticated user** — no user can see another user's companions
 
 `express-session` is used only for the brief OAuth state exchange (CSRF protection during the redirect dance). Long-term sessions are stateless JWTs.
+
+---
+
+## Settings
+
+Each signed-in user has a personal settings page (accessible from the avatar dropdown in the navbar) with two options:
+
+### AI Model
+Choose which Claude model is used for your conversations:
+
+| Model | Character | Best for |
+|---|---|---|
+| **Claude Opus** | Most expressive | Emotionally rich, nuanced conversation — the default |
+| **Claude Sonnet** | Balanced | Strong quality at lower cost; great everyday choice |
+| **Claude Haiku** | Fastest | Quick, frequent short chats; most economical |
+
+The selection is saved immediately and takes effect on the next message sent in any conversation.
+
+### Anthropic API Key
+Optionally supply your own `sk-ant-…` key. When set, every conversation in your account uses your personal Anthropic quota. Remove it at any time to fall back to the server's shared key. The full key is never returned to the frontend — only a masked preview (`sk-ant-api0••••••••XXXX`) is shown.
 
 ---
 

@@ -25,7 +25,7 @@ export default function EditPersona() {
     ocean_neuroticism:       50,
   })
   const [lifeContext, setLifeContext] = useState({
-    location: '', usual_places: '', daily_routine: '',
+    location: '', usual_places: [], daily_routine: '',
     interests: [], likes: [], dislikes: [],
     context_notes: '',
   })
@@ -64,7 +64,7 @@ export default function EditPersona() {
         setModeBehaviors(p.mode_behaviors || {})
         setLifeContext({
           location:      p.location      || '',
-          usual_places:  p.usual_places  || '',
+          usual_places:  Array.isArray(p.usual_places) ? p.usual_places : [],
           daily_routine: p.daily_routine || '',
           interests:     p.interests     || [],
           likes:         p.likes         || [],

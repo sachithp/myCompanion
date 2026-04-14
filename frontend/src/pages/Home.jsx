@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, UserPlus, Upload, X, BookOpen, AlertCircle, Users, MapPin, Tag } from 'lucide-react'
+import { Heart, UserPlus, Upload, X, BookOpen, AlertCircle, Users, MapPin, Tag, Library } from 'lucide-react'
 import PersonaCard from '../components/PersonaCard'
 import { getPersonas, importPersona } from '../api'
 
@@ -282,6 +282,19 @@ export default function Home() {
               </div>
             )}
 
+            {/* Places */}
+            {importPreview.persona.usual_places?.length > 0 && (
+              <div className="flex items-start gap-1.5 text-warm-500 text-xs mb-3">
+                <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  {importPreview.persona.usual_places.slice(0, 4).map(p => p.name).join(', ')}
+                  {importPreview.persona.usual_places.length > 4 && (
+                    <span className="text-warm-400"> +{importPreview.persona.usual_places.length - 4} more</span>
+                  )}
+                </span>
+              </div>
+            )}
+
             {/* Interests */}
             {importPreview.persona.interests?.length > 0 && (
               <div className="flex items-start gap-1.5 text-warm-500 text-xs mb-4">
@@ -296,8 +309,8 @@ export default function Home() {
             )}
 
             {/* Counts row */}
-            {(importPreview.memories?.length > 0 || importPreview.relations?.length > 0) && (
-              <div className="flex items-center gap-4 text-warm-400 text-xs mb-5">
+            {(importPreview.memories?.length > 0 || importPreview.relations?.length > 0 || importPreview.knowledge?.length > 0) && (
+              <div className="flex flex-wrap items-center gap-4 text-warm-400 text-xs mb-5">
                 {importPreview.memories?.length > 0 && (
                   <div className="flex items-center gap-1.5">
                     <BookOpen size={12} />
@@ -308,6 +321,12 @@ export default function Home() {
                   <div className="flex items-center gap-1.5">
                     <Users size={12} />
                     <span>{importPreview.relations.length} {importPreview.relations.length === 1 ? 'connection' : 'connections'}</span>
+                  </div>
+                )}
+                {importPreview.knowledge?.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Library size={12} />
+                    <span>{importPreview.knowledge.length} knowledge {importPreview.knowledge.length === 1 ? 'source' : 'sources'}</span>
                   </div>
                 )}
               </div>

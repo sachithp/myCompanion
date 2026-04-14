@@ -45,12 +45,22 @@ export const setMode = (conversationId, mode) => api.patch(`/conversations/${con
 
 // Import / Export
 export const importPersona = (data) => api.post('/personas/import', data)
-export const exportPersona = (id, name) => {
-  const a = document.createElement('a')
-  a.href = `/api/personas/${id}/export`
+export async function exportPersona(id, name) {
+  const token = localStorage.getItem('mc_token')
+  const res = await fetch(`/api/personas/${id}/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error('Export failed')
+  const blob = await res.blob()
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  const safe = (name || 'companion').replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  a.href     = url
+  a.download = `${safe}_companion.json`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 // Settings / API key + model

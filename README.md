@@ -28,52 +28,68 @@ Users create rich profiles of their loved ones — calibrating personality scien
 
 ```mermaid
 flowchart TB
-    User((User))
+    User(["User"])
 
-    subgraph FE[Frontend - React SPA]
-        subgraph FE_UI[Pages and Components]
-            HOME[Home]
-            FORM[New / Edit Persona]
-            CHAT[Chat]
+    subgraph FE["Frontend — React SPA (Vite + Tailwind CSS)"]
+        subgraph FE_UI["Pages & Components"]
+            HOME["Home\npersona grid, import preview"]
+            FORM["New / Edit Persona\nOceanSliders, LifeContextEditor\nRelationsEditor, KnowledgeEditor\nModeBehaviorsEditor"]
+            CHAT["Chat\nMood Picker, EventPanel\nStreaming bubbles"]
         end
-        APIJS[api.js]
+        APIJS["api.js — Axios + native Fetch"]
     end
 
-    subgraph BE[Backend - Node.js / Express]
-        SRV[server.js]
-        subgraph RT[Routes]
-            PR[personas.js]
-            CR[conversations.js]
+    subgraph BE["Backend — Node.js / Express"]
+        SRV["server.js\nmiddleware, photo upload, static serve"]
+        subgraph RT["Routes"]
+            PR["personas.js\nCRUD, memories, relations, knowledge\nmode-behaviors, import/export"]
+            CR["conversations.js\nchat messages, live events"]
         end
-        subgraph SP[System Prompt Builder]
-            SP1[1. OCEAN] --> SP2[2. Mood Mode] --> SP3[3. Life Context] --> SP4[4. Knowledge] --> SP5[5. Relations] --> SP6[6. Memories]
+        subgraph SP["System Prompt Builder (assembled per message)"]
+            SP1["1. OCEAN\nPersonality"] --> SP2["2. Mood Mode\n+ Behaviors"] --> SP3["3. Life\nContext"] --> SP4["4. Knowledge\nRefs"] --> SP5["5. Family +\nRelations"] --> SP6["6. Memories\n+ Words"]
         end
-        DBJS[db.js]
+        DBJS["db.js — schema init + migration loop"]
     end
 
-    subgraph STORE[Storage]
-        DB[(companion.db)]
-        FS[(uploads / photos)]
+    subgraph STORE["Storage"]
+        DB[("SQLite — companion.db\npersonas, memory_cards\npersona_relations, persona_knowledge\npersona_mode_behaviors\nconversations, messages")]
+        FS[("File System\nuploads/photos")]
     end
 
-    subgraph EXT[External Services]
-        ANT[Anthropic API]
-        WEB[Web fetch]
+    subgraph EXT["External Services"]
+        ANT["Anthropic API\nClaude Opus 4.6"]
+        WEB["Web\nURL fetch for knowledge links"]
     end
 
-    User --> FE_UI
-    FE_UI --> APIJS
-    APIJS -->|HTTP REST| SRV
+    User --> HOME
+    User --> FORM
+    User --> CHAT
+    HOME --> APIJS
+    FORM --> APIJS
+    CHAT --> APIJS
+    APIJS -- "HTTP REST" --> SRV
     SRV --> PR
     SRV --> CR
     PR --> DBJS --> DB
     CR --> DBJS
     SRV --> FS
     CR --> SP
-    CR -->|SDK + prompt| ANT
-    ANT -->|token stream| CR
-    CR -->|SSE| APIJS
-    PR -->|fetch url| WEB
+    CR -- "SDK + assembled prompt" --> ANT
+    ANT -- "token stream" --> CR
+    CR -- "SSE" --> APIJS
+    PR -- "fetch(url)" --> WEB
+
+    classDef fe fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef be fill:#dcfce7,stroke:#22c55e,color:#14532d
+    classDef store fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    classDef ext fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
+    classDef user fill:#f1f5f9,stroke:#64748b,color:#0f172a
+
+    class HOME,FORM,CHAT,APIJS fe
+    class SRV,PR,CR,DBJS,SP1,SP2,SP3,SP4,SP5,SP6 be
+    class DB,FS store
+    class ANT,WEB ext
+    class User user
 ```
 
 ### File tree

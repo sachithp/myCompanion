@@ -26,6 +26,58 @@ Users create rich profiles of their loved ones — calibrating personality scien
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    User((User))
+
+    subgraph FE[Frontend - React SPA]
+        subgraph FE_UI[Pages and Components]
+            HOME[Home]
+            FORM[New / Edit Persona]
+            CHAT[Chat]
+        end
+        APIJS[api.js]
+    end
+
+    subgraph BE[Backend - Node.js / Express]
+        SRV[server.js]
+        subgraph RT[Routes]
+            PR[personas.js]
+            CR[conversations.js]
+        end
+        subgraph SP[System Prompt Builder]
+            SP1[1. OCEAN] --> SP2[2. Mood Mode] --> SP3[3. Life Context] --> SP4[4. Knowledge] --> SP5[5. Relations] --> SP6[6. Memories]
+        end
+        DBJS[db.js]
+    end
+
+    subgraph STORE[Storage]
+        DB[(companion.db)]
+        FS[(uploads / photos)]
+    end
+
+    subgraph EXT[External Services]
+        ANT[Anthropic API]
+        WEB[Web fetch]
+    end
+
+    User --> FE_UI
+    FE_UI --> APIJS
+    APIJS -->|HTTP REST| SRV
+    SRV --> PR
+    SRV --> CR
+    PR --> DBJS --> DB
+    CR --> DBJS
+    SRV --> FS
+    CR --> SP
+    CR -->|SDK + prompt| ANT
+    ANT -->|token stream| CR
+    CR -->|SSE| APIJS
+    PR -->|fetch url| WEB
+```
+
+### File tree
+
 ```
 myCompanion/
 ├── nixpacks.toml             Railway build configuration

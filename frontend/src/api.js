@@ -19,11 +19,22 @@ export const addRelation = (personaId, data) => api.post(`/personas/${personaId}
 export const deleteRelation = (personaId, relationId) =>
   api.delete(`/personas/${personaId}/relations/${relationId}`)
 
+// Mode behaviors
+export const saveModeBehavior = (personaId, mode, behavior) =>
+  api.put(`/personas/${personaId}/mode-behaviors/${mode}`, { behavior })
+
+// Knowledge sources
+export const getKnowledge = (personaId) => api.get(`/personas/${personaId}/knowledge`)
+export const addKnowledge = (personaId, data) => api.post(`/personas/${personaId}/knowledge`, data)
+export const deleteKnowledge = (personaId, kId) =>
+  api.delete(`/personas/${personaId}/knowledge/${kId}`)
+
 // Conversations
 export const getConversations = (personaId) => api.get(`/personas/${personaId}/conversations`)
 export const createConversation = (personaId) => api.post(`/personas/${personaId}/conversations`)
 export const getMessages = (conversationId) => api.get(`/conversations/${conversationId}/messages`)
 export const deleteConversation = (id) => api.delete(`/conversations/${id}`)
+export const setMode = (conversationId, mode) => api.patch(`/conversations/${conversationId}/mode`, { mode })
 
 // Import / Export
 export const importPersona = (data) => api.post('/personas/import', data)

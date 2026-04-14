@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Camera, Plus, X } from 'lucide-react'
-import { createPersona, addMemory, addRelation, uploadPhoto } from '../api'
+import { createPersona, addMemory, addRelation, addKnowledge, saveModeBehavior, uploadPhoto } from '../api'
 import OceanSliders from '../components/OceanSliders'
 import RelationsEditor from '../components/RelationsEditor'
 import LifeContextEditor from '../components/LifeContextEditor'
+import KnowledgeEditor from '../components/KnowledgeEditor'
+import ModeBehaviorsEditor from '../components/ModeBehaviorsEditor'
 
 const DEFAULT_OCEAN = {
   ocean_openness:          50,
@@ -35,6 +37,8 @@ export default function NewPersona() {
   const [memories, setMemories] = useState([])
   const [memoryDraft, setMemoryDraft] = useState({ title: '', content: '' })
   const [relations, setRelations] = useState([])
+  const [knowledge, setKnowledge] = useState([])
+  const [modeBehaviors, setModeBehaviors] = useState({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -80,6 +84,13 @@ export default function NewPersona() {
       }
       for (const rel of relations) {
         await addRelation(personaId, rel)
+      }
+      for (const kd of knowledge) {
+        const { _draftId, ...kData } = kd
+        await addKnowledge(personaId, kData)
+      }
+      for (const [mode, behavior] of Object.entries(modeBehaviors)) {
+        if (behavior?.trim()) await saveModeBehavior(personaId, mode, behavior)
       }
 
       navigate('/')
@@ -176,6 +187,22 @@ export default function NewPersona() {
           <OceanSliders values={ocean} onChange={handleOceanChange} />
         </div>
 
+        {/* ── Mood behaviours ───────────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Mood behaviours</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Describe how <span className="font-medium text-warm-600">{form.name || 'this person'}</span> specifically
+            acts in each mood. The AI will layer this on top of the general mood description —
+            making responses feel uniquely like <em>them</em>.
+            Leave blank for any mood you don't want to customise.
+          </p>
+          <ModeBehaviorsEditor
+            personaName={form.name}
+            values={modeBehaviors}
+            onChange={(mode, text) => setModeBehaviors((prev) => ({ ...prev, [mode]: text }))}
+          />
+        </div>
+
         {/* ── Personal notes (optional) ─────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Personal notes</h2>
@@ -270,6 +297,24 @@ export default function NewPersona() {
               <Plus size={14} /> Add Memory
             </button>
           </div>
+        </div>
+
+        {/* ── Knowledge & references ────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Knowledge &amp; references</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Upload markdown files or paste links to blogs, interviews, or writeups about them.
+            The AI will read these and draw on the facts — without inventing beyond what's written.
+          </p>
+          <KnowledgeEditor
+            sources={knowledge}
+            onAdd={(draft) =>
+              setKnowledge((prev) => [...prev, { ...draft, _draftId: Date.now() }])
+            }
+            onDelete={(draftId) =>
+              setKnowledge((prev) => prev.filter((k) => k._draftId !== draftId))
+            }
+          />
         </div>
 
         {error && <p className="text-blush-500 text-sm text-center">{error}</p>}

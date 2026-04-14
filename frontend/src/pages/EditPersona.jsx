@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Camera, Plus, X, Loader } from 'lucide-react'
-import { getPersona, updatePersona, addMemory, deleteMemory, addRelation, deleteRelation, uploadPhoto } from '../api'
+import { getPersona, updatePersona, addMemory, deleteMemory, addRelation, deleteRelation, uploadPhoto, addKnowledge, deleteKnowledge, saveModeBehavior } from '../api'
 import OceanSliders from '../components/OceanSliders'
 import RelationsEditor from '../components/RelationsEditor'
 import LifeContextEditor from '../components/LifeContextEditor'
+import KnowledgeEditor from '../components/KnowledgeEditor'
+import ModeBehaviorsEditor from '../components/ModeBehaviorsEditor'
 
 export default function EditPersona() {
   const { id } = useParams()
@@ -32,6 +34,8 @@ export default function EditPersona() {
   const [memories, setMemories] = useState([])
   const [memoryDraft, setMemoryDraft] = useState({ title: '', content: '' })
   const [relations, setRelations] = useState([])
+  const [knowledge, setKnowledge] = useState([])
+  const [modeBehaviors, setModeBehaviors] = useState({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -56,6 +60,8 @@ export default function EditPersona() {
         if (p.photo_path) setPhotoPreview(p.photo_path)
         setMemories(p.memories || [])
         setRelations(p.relations || [])
+        setKnowledge(p.knowledge || [])
+        setModeBehaviors(p.mode_behaviors || {})
         setLifeContext({
           location:      p.location      || '',
           usual_places:  p.usual_places  || '',
@@ -90,6 +96,24 @@ export default function EditPersona() {
     if (!confirm('Remove this person?')) return
     await deleteRelation(id, relationId)
     setRelations((prev) => prev.filter((r) => r.id !== relationId))
+  }
+
+  function handleModeBehaviorChange(mode, text, persist = false) {
+    setModeBehaviors((prev) => ({ ...prev, [mode]: text }))
+    if (persist) {
+      saveModeBehavior(id, mode, text).catch(() => {})
+    }
+  }
+
+  async function handleAddKnowledge(draft) {
+    const res = await addKnowledge(id, draft)
+    setKnowledge((prev) => [...prev, res.data])
+  }
+
+  async function handleDeleteKnowledge(kId) {
+    if (!confirm('Remove this reference?')) return
+    await deleteKnowledge(id, kId)
+    setKnowledge((prev) => prev.filter((k) => k.id !== kId))
   }
 
   async function handleAddMemory() {
@@ -217,6 +241,22 @@ export default function EditPersona() {
           <OceanSliders values={ocean} onChange={handleOceanChange} />
         </div>
 
+        {/* ── Mood behaviours ───────────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Mood behaviours</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Describe how <span className="font-medium text-warm-600">{form.name || 'this person'}</span> specifically
+            acts in each mood. The AI will layer this on top of the general mood description —
+            making responses feel uniquely like <em>them</em>, not just anyone who is tired or happy.
+            Leave blank for any mood you don't want to customise.
+          </p>
+          <ModeBehaviorsEditor
+            personaName={form.name}
+            values={modeBehaviors}
+            onChange={handleModeBehaviorChange}
+          />
+        </div>
+
         {/* ── Personal notes ────────────────────────────────────────────── */}
         <div className="card p-6">
           <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Personal notes</h2>
@@ -287,6 +327,20 @@ export default function EditPersona() {
               <Plus size={14} /> Add Memory
             </button>
           </div>
+        </div>
+
+        {/* ── Knowledge & references ────────────────────────────────────── */}
+        <div className="card p-6">
+          <h2 className="font-serif text-lg text-warm-800 font-medium mb-1">Knowledge &amp; references</h2>
+          <p className="text-warm-400 text-xs mb-5">
+            Upload markdown files or paste links to blogs, interviews, or writeups about them.
+            The AI will read these and draw on the facts — without inventing beyond what's written.
+          </p>
+          <KnowledgeEditor
+            sources={knowledge}
+            onAdd={handleAddKnowledge}
+            onDelete={handleDeleteKnowledge}
+          />
         </div>
 
         {error && <p className="text-blush-500 text-sm text-center">{error}</p>}

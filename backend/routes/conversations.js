@@ -110,7 +110,47 @@ function buildLifeContextSection(persona) {
   return `\nKnown facts about ${persona.name}'s life:\n${lines.join('\n')}`
 }
 
-function buildSystemPrompt(persona, memories, relations) {
+function buildModeSection(persona, mode, modeBehaviors = {}) {
+  const genericDescriptions = {
+    happy:     `In particularly good spirits — warm, upbeat, smiling easily. Quicker to laugh, more expressive, generous with affection.`,
+    nostalgic: `In a nostalgic, reflective mood — thoughts drifting back to people, places, and times gone by with warmth and quiet wistfulness.`,
+    tired:     `Tired and low on energy — responses are slower, gentler, and shorter. Still loving, but quieter.`,
+    sad:       `Feeling heavy-hearted — still present and caring, but with a quiet sadness underneath. Words are gentle and measured.`,
+    worried:   `Feeling anxious or worried — checks in more, asks more questions, may circle back to concerns.`,
+    excited:   `Genuinely excited — animated, enthusiastic, energy is high. More expressive, words come quickly.`,
+    unwell:    `Under the weather — quieter and more careful with energy, still warm but clearly conserving themselves.`,
+    busy:      `Caught up and busy — a little distracted, responses are brief and to the point. Still caring, but multitasking.`,
+  }
+
+  const generic = mode !== 'normal' ? genericDescriptions[mode] : null
+  const custom  = modeBehaviors[mode]?.trim() || null
+
+  if (!generic && !custom) return ''
+
+  const parts = []
+  if (generic) parts.push(`General: ${generic}`)
+  if (custom)  parts.push(`How ${persona.name} personally expresses this: ${custom}`)
+
+  const modeLabel = mode === 'normal' ? 'baseline' : `current mood (${mode})`
+  return `\nCurrent mood/state — ${modeLabel}, let this shape every response:\n${parts.join('\n')}`
+}
+
+function buildKnowledgeSection(persona, knowledgeSources) {
+  if (!knowledgeSources.length) return ''
+
+  const MAX_CHARS = 3000 // per source — generous but bounded
+  const sections = knowledgeSources.slice(0, 6).map((s) => {
+    const sourceLabel = s.type === 'link' ? `Source: ${s.url}` : 'Source: uploaded document'
+    const body = s.content
+      ? s.content.slice(0, MAX_CHARS) + (s.content.length > MAX_CHARS ? '\n[…truncated]' : '')
+      : '(no readable content)'
+    return `### ${s.title}\n(${sourceLabel})\n${body}`
+  })
+
+  return `\nKnowledge & background references for ${persona.name}:\nThe following documents provide additional factual background. Draw on these facts naturally but never invent anything beyond what is written here.\n\n${sections.join('\n\n---\n\n')}`
+}
+
+function buildSystemPrompt(persona, memories, relations, knowledgeSources = [], mode = 'normal', modeBehaviors = {}) {
   const memorySection = memories.length > 0
     ? `\nCherished memories and moments:\n${memories.map(m => `• ${m.title}: ${m.content}`).join('\n')}`
     : ''
@@ -125,12 +165,16 @@ function buildSystemPrompt(persona, memories, relations) {
     ? `\nPersonal notes about ${persona.name}:\n${persona.description}`
     : ''
 
-  const oceanSection    = buildOceanDescription(persona)
-  const lifeSection     = buildLifeContextSection(persona)
+  const oceanSection     = buildOceanDescription(persona)
+  const lifeSection      = buildLifeContextSection(persona)
+  const knowledgeSection = buildKnowledgeSection(persona, knowledgeSources)
+  const modeSection      = buildModeSection(persona, mode, modeBehaviors)
 
   return `You are speaking as ${persona.name}${persona.relationship ? `, the ${persona.relationship}` : ''} of the person you're talking with.
 ${oceanSection}
+${modeSection}
 ${lifeSection}
+${knowledgeSection}
 ${notesSection}
 ${relationsSection}
 ${conversationsSection}
@@ -168,6 +212,17 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// PATCH /api/conversations/:id/mode — update the current persona mood
+router.patch('/:id/mode', (req, res) => {
+  const db = getDb()
+  const { mode } = req.body
+  const valid = ['normal', 'happy', 'nostalgic', 'tired', 'sad', 'worried', 'excited', 'unwell', 'busy']
+  if (!valid.includes(mode)) return res.status(400).json({ error: 'Invalid mode' })
+
+  db.prepare('UPDATE conversations SET current_mode = ? WHERE id = ?').run(mode, req.params.id)
+  res.json({ success: true, mode })
+})
+
 // ── Shared SSE streaming helper ───────────────────────────────────────────────
 async function streamResponse(res, db, conversation, storedContent, firstUserTurn) {
   const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(conversation.persona_id)
@@ -178,11 +233,20 @@ async function streamResponse(res, db, conversation, storedContent, firstUserTur
     'SELECT * FROM persona_relations WHERE persona_id = ? ORDER BY created_at ASC'
   ).all(conversation.persona_id)
 
+  const knowledgeSources = db.prepare(
+    'SELECT * FROM persona_knowledge WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(conversation.persona_id)
+
+  const modeBehaviorRows = db.prepare(
+    'SELECT mode, behavior FROM persona_mode_behaviors WHERE persona_id = ?'
+  ).all(conversation.persona_id)
+  const modeBehaviors = Object.fromEntries(modeBehaviorRows.map((r) => [r.mode, r.behavior]))
+
   const history = db.prepare(
     'SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
   ).all(conversation.id)
 
-  const systemPrompt = buildSystemPrompt(persona, memories, relations)
+  const systemPrompt = buildSystemPrompt(persona, memories, relations, knowledgeSources, conversation.current_mode || 'normal', modeBehaviors)
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')

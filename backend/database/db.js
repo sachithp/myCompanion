@@ -76,10 +76,28 @@ function initDb() {
       content TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS persona_knowledge (
+      id TEXT PRIMARY KEY,
+      persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'file',
+      title TEXT NOT NULL,
+      url TEXT,
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS persona_mode_behaviors (
+      persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL,
+      behavior TEXT NOT NULL,
+      PRIMARY KEY (persona_id, mode)
+    );
   `)
 
   // Migrate existing databases — add new columns if not yet present
   const migrations = [
+    'ALTER TABLE conversations ADD COLUMN current_mode TEXT DEFAULT \'normal\'',
     'ALTER TABLE personas ADD COLUMN ocean_openness          INTEGER DEFAULT 50',
     'ALTER TABLE personas ADD COLUMN ocean_conscientiousness INTEGER DEFAULT 50',
     'ALTER TABLE personas ADD COLUMN ocean_extraversion      INTEGER DEFAULT 50',

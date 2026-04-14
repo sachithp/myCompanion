@@ -72,7 +72,7 @@ router.post('/', (req, res) => {
 // POST /api/personas/import — create persona from exported JSON
 router.post('/import', (req, res) => {
   const db = getDb()
-  const { persona, memories } = req.body
+  const { persona, memories, relations, knowledge, mode_behaviors } = req.body
 
   if (!persona?.name?.trim()) {
     return res.status(400).json({ error: 'Invalid file: persona name is required' })
@@ -147,6 +147,28 @@ router.post('/import', (req, res) => {
     }
   }
 
+  if (Array.isArray(knowledge)) {
+    for (const k of knowledge) {
+      if (k.title?.trim()) {
+        db.prepare(
+          'INSERT INTO persona_knowledge (id, persona_id, type, title, url, content) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(uuidv4(), id, k.type || 'file', k.title.trim(), k.url || null, k.content || null)
+      }
+    }
+  }
+
+  if (mode_behaviors && typeof mode_behaviors === 'object') {
+    for (const [mode, behavior] of Object.entries(mode_behaviors)) {
+      if (behavior?.trim()) {
+        db.prepare(`
+          INSERT INTO persona_mode_behaviors (persona_id, mode, behavior)
+          VALUES (?, ?, ?)
+          ON CONFLICT(persona_id, mode) DO UPDATE SET behavior = excluded.behavior
+        `).run(id, mode, behavior.trim())
+      }
+    }
+  }
+
   const newPersona = db.prepare(`
     SELECT p.*, COUNT(m.id) as memory_count
     FROM personas p LEFT JOIN memory_cards m ON m.persona_id = p.id
@@ -155,7 +177,7 @@ router.post('/import', (req, res) => {
   res.status(201).json(newPersona)
 })
 
-// GET /api/personas/:id — get with memories and relations
+// GET /api/personas/:id — get with memories, relations, and knowledge sources
 router.get('/:id', (req, res) => {
   const db = getDb()
   const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(req.params.id)
@@ -169,7 +191,17 @@ router.get('/:id', (req, res) => {
     'SELECT * FROM persona_relations WHERE persona_id = ? ORDER BY created_at ASC'
   ).all(req.params.id)
 
-  res.json({ ...withInterests(persona), memories, relations })
+  const knowledge = db.prepare(
+    'SELECT * FROM persona_knowledge WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id)
+
+  const modeBehaviorRows = db.prepare(
+    'SELECT mode, behavior FROM persona_mode_behaviors WHERE persona_id = ?'
+  ).all(req.params.id)
+  // Convert to a plain object { mode: behavior } for easy consumption
+  const mode_behaviors = Object.fromEntries(modeBehaviorRows.map((r) => [r.mode, r.behavior]))
+
+  res.json({ ...withInterests(persona), memories, relations, knowledge, mode_behaviors })
 })
 
 // PUT /api/personas/:id — update
@@ -281,6 +313,97 @@ router.delete('/:personaId/relations/:relationId', (req, res) => {
   res.json({ success: true })
 })
 
+// GET /api/personas/:id/knowledge — list knowledge sources
+router.get('/:id/knowledge', (req, res) => {
+  const db = getDb()
+  const sources = db.prepare(
+    'SELECT * FROM persona_knowledge WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id)
+  res.json(sources)
+})
+
+// POST /api/personas/:id/knowledge — add a knowledge source (file content or web link)
+router.post('/:id/knowledge', async (req, res) => {
+  const db = getDb()
+  const { type, title, url, content } = req.body
+
+  const persona = db.prepare('SELECT id FROM personas WHERE id = ?').get(req.params.id)
+  if (!persona) return res.status(404).json({ error: 'Persona not found' })
+  if (!title?.trim()) return res.status(400).json({ error: 'Title is required' })
+
+  let finalContent = content || null
+  const finalUrl = url || null
+
+  // For links, fetch and extract text from the page
+  if (type === 'link' && url) {
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; myCompanion/1.0)' },
+        signal: AbortSignal.timeout(12000),
+      })
+      const html = await response.text()
+      const text = html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim()
+      finalContent = text.slice(0, 12000)
+    } catch (err) {
+      finalContent = `[Content could not be fetched from ${url}. Reason: ${err.message}]`
+    }
+  }
+
+  const id = uuidv4()
+  db.prepare(
+    'INSERT INTO persona_knowledge (id, persona_id, type, title, url, content) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, req.params.id, type || 'file', title.trim(), finalUrl, finalContent)
+
+  const source = db.prepare('SELECT * FROM persona_knowledge WHERE id = ?').get(id)
+  res.status(201).json(source)
+})
+
+// DELETE /api/personas/:personaId/knowledge/:kId
+router.delete('/:personaId/knowledge/:kId', (req, res) => {
+  const db = getDb()
+  db.prepare(
+    'DELETE FROM persona_knowledge WHERE id = ? AND persona_id = ?'
+  ).run(req.params.kId, req.params.personaId)
+  res.json({ success: true })
+})
+
+// PUT /api/personas/:id/mode-behaviors/:mode — upsert a behavior for a specific mode
+// Sending an empty behavior string removes it
+router.put('/:id/mode-behaviors/:mode', (req, res) => {
+  const db = getDb()
+  const { mode } = req.params
+  const { behavior } = req.body
+  const VALID_MODES = ['normal', 'happy', 'nostalgic', 'tired', 'sad', 'worried', 'excited', 'unwell', 'busy']
+
+  if (!VALID_MODES.includes(mode)) return res.status(400).json({ error: 'Invalid mode' })
+
+  const persona = db.prepare('SELECT id FROM personas WHERE id = ?').get(req.params.id)
+  if (!persona) return res.status(404).json({ error: 'Persona not found' })
+
+  const text = behavior?.trim() || ''
+  if (text) {
+    db.prepare(`
+      INSERT INTO persona_mode_behaviors (persona_id, mode, behavior)
+      VALUES (?, ?, ?)
+      ON CONFLICT(persona_id, mode) DO UPDATE SET behavior = excluded.behavior
+    `).run(req.params.id, mode, text)
+  } else {
+    db.prepare(
+      'DELETE FROM persona_mode_behaviors WHERE persona_id = ? AND mode = ?'
+    ).run(req.params.id, mode)
+  }
+
+  res.json({ success: true, mode, behavior: text || null })
+})
+
 // GET /api/personas/:id/conversations
 router.get('/:id/conversations', (req, res) => {
   const db = getDb()
@@ -303,6 +426,15 @@ router.get('/:id/export', (req, res) => {
   const relations = db.prepare(
     'SELECT name, relation_to_persona, relation_to_user, notes FROM persona_relations WHERE persona_id = ? ORDER BY created_at ASC'
   ).all(req.params.id)
+
+  const knowledge = db.prepare(
+    'SELECT type, title, url, content FROM persona_knowledge WHERE persona_id = ? ORDER BY created_at ASC'
+  ).all(req.params.id)
+
+  const modeBehaviorExportRows = db.prepare(
+    'SELECT mode, behavior FROM persona_mode_behaviors WHERE persona_id = ?'
+  ).all(req.params.id)
+  const mode_behaviors = Object.fromEntries(modeBehaviorExportRows.map((r) => [r.mode, r.behavior]))
 
   let photoData = null
   if (persona.photo_path) {
@@ -345,6 +477,8 @@ router.get('/:id/export', (req, res) => {
     },
     memories,
     relations,
+    knowledge,
+    mode_behaviors,
   }
 
   const safeName = persona.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()

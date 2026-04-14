@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Send, RotateCcw, Heart, BookOpen, Loader, Zap } from 'lucide-react'
-import { getPersona, getConversations, createConversation, getMessages } from '../api'
+import { ArrowLeft, Send, RotateCcw, Heart, BookOpen, Loader, Zap, Smile } from 'lucide-react'
+import { getPersona, getConversations, createConversation, getMessages, setMode } from '../api'
 import EventPanel from '../components/EventPanel'
+import { MODES, getModeById } from '../utils/modes'
 
 const AVATAR_COLORS = ['#C4956A', '#A87040', '#8B5E3C', '#D4A5A5', '#6B8E6B', '#7A8BB5']
 
@@ -110,6 +111,8 @@ export default function Chat() {
   const [error, setError]                   = useState('')
   const [showMemories, setShowMemories]     = useState(false)
   const [showEventPanel, setShowEventPanel] = useState(false)
+  const [showModePanel, setShowModePanel]   = useState(false)
+  const [currentMode, setCurrentMode]       = useState('normal')
 
   const bottomRef  = useRef(null)
   const inputRef   = useRef(null)
@@ -129,13 +132,17 @@ export default function Chat() {
         setPersona(personaRes.data)
 
         let convoId
+        let convoMode = 'normal'
         if (convoRes.data.length > 0) {
-          convoId = convoRes.data[0].id
+          convoId   = convoRes.data[0].id
+          convoMode = convoRes.data[0].current_mode || 'normal'
         } else {
           const newConvo = await createConversation(personaId)
-          convoId = newConvo.data.id
+          convoId   = newConvo.data.id
+          convoMode = 'normal'
         }
         setConversationId(convoId)
+        setCurrentMode(convoMode)
 
         const msgsRes = await getMessages(convoId)
         setMessages(msgsRes.data)
@@ -154,7 +161,9 @@ export default function Chat() {
       const newConvo = await createConversation(personaId)
       setConversationId(newConvo.data.id)
       setMessages([])
+      setCurrentMode('normal')
       setShowEventPanel(false)
+      setShowModePanel(false)
     } catch {
       alert('Could not start a new conversation.')
     }
@@ -165,6 +174,17 @@ export default function Chat() {
     const ta = e.target
     ta.style.height = 'auto'
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+  }
+
+  // ── Mode change ─────────────────────────────────────────────────────────
+  async function handleModeChange(modeId) {
+    setCurrentMode(modeId)
+    setShowModePanel(false)
+    try {
+      await setMode(conversationId, modeId)
+    } catch {
+      // Non-critical — mode set locally even if persist fails
+    }
   }
 
   // ── Shared SSE stream reader ─────────────────────────────────────────────
@@ -306,12 +326,28 @@ export default function Chat() {
 
           <div className="flex items-center gap-1">
             {hasMemories && (
-              <button onClick={() => setShowMemories((v) => !v)}
+              <button onClick={() => { setShowMemories((v) => !v); setShowModePanel(false) }}
                 className="btn-ghost text-xs flex items-center gap-1.5 py-1.5">
                 <BookOpen size={14} />
                 <span className="hidden sm:inline">Memories</span>
               </button>
             )}
+            {/* Mode toggle — shows emoji when non-normal */}
+            <button
+              onClick={() => { setShowModePanel((v) => !v); setShowMemories(false) }}
+              title="Set mood"
+              className={`btn-ghost text-xs flex items-center gap-1.5 py-1.5 transition-colors
+                ${showModePanel ? 'bg-warm-100 text-warm-800' : ''}
+                ${currentMode !== 'normal' ? 'text-warm-700 font-medium' : ''}`}
+            >
+              {currentMode !== 'normal'
+                ? <span className="text-base leading-none">{getModeById(currentMode).emoji}</span>
+                : <Smile size={14} />
+              }
+              <span className="hidden sm:inline">
+                {currentMode !== 'normal' ? getModeById(currentMode).label : 'Mood'}
+              </span>
+            </button>
             <button onClick={startNewConversation}
               className="btn-ghost text-xs flex items-center gap-1.5 py-1.5"
               title="Start new conversation">
@@ -332,6 +368,40 @@ export default function Chat() {
                   <span className="font-medium">{m.title}:</span>{' '}
                   <span className="text-warm-500">{m.content.slice(0, 60)}{m.content.length > 60 ? '…' : ''}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Mode picker panel */}
+        {showModePanel && (
+          <div className="border-t border-warm-100 bg-warm-50 max-w-3xl mx-auto px-4 py-4">
+            <p className="text-xs font-medium text-warm-600 mb-3">
+              How is {persona?.name?.split(' ')[0] || 'them'} feeling right now?
+              <span className="font-normal text-warm-400 ml-1">
+                — shapes their tone for the whole conversation
+              </span>
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleModeChange(m.id)}
+                  className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border
+                              text-center transition-all
+                    ${currentMode === m.id
+                      ? 'bg-warm-800 border-warm-800 text-white shadow-sm'
+                      : 'bg-white border-warm-200 text-warm-700 hover:border-warm-400 hover:bg-warm-50'
+                    }`}
+                >
+                  <span className="text-xl leading-none">{m.emoji}</span>
+                  <span className="text-xs font-medium leading-tight">{m.label}</span>
+                  <span className={`text-[10px] leading-tight
+                    ${currentMode === m.id ? 'text-warm-200' : 'text-warm-400'}`}>
+                    {m.hint}
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -445,7 +515,7 @@ export default function Chat() {
             </div>
 
             <p className="text-center text-warm-300 text-xs mt-2">
-              Press Enter to send · Shift+Enter for new line · ⚡ to add a live event
+              Enter to send · Shift+Enter for new line · ⚡ event · 😊 mood
             </p>
           </div>
         </div>

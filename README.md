@@ -235,8 +235,19 @@ The import preview shows the personality bar chart, location, interests, memory 
 ### Prerequisites
 - Node.js 18+
 - An [Anthropic API key](https://console.anthropic.com/settings/api-keys) with credits
+- A Google OAuth 2.0 client ID and secret (see below)
 
-### Setup
+### 1 — Create Google OAuth credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials**
+2. Click **Create Credentials** → **OAuth client ID**
+3. Application type: **Web application**
+4. Add an **Authorised redirect URI**:
+   - Development: `http://localhost:3001/api/auth/google/callback`
+   - Production: `https://your-railway-app.railway.app/api/auth/google/callback`
+5. Copy the **Client ID** and **Client Secret**
+
+### 2 — Local setup
 
 ```bash
 # 1. Clone the repo
@@ -246,15 +257,29 @@ cd myCompanion
 # 2. Install backend dependencies
 cd backend && npm install
 
-# 3. Add your API key
+# 3. Configure environment variables
 cp .env.example .env
-# Edit .env and set ANTHROPIC_API_KEY=sk-ant-...
+```
 
+Edit `backend/.env` and fill in all values:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+PORT=3001
+FRONTEND_URL=http://localhost:5173
+BACKEND_URL=http://localhost:3001
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+JWT_SECRET=a_long_random_string        # openssl rand -hex 32
+SESSION_SECRET=another_long_random_string
+```
+
+```bash
 # 4. Install frontend dependencies
 cd ../frontend && npm install
 ```
 
-### Run
+### 3 — Run
 
 ```bash
 # Terminal 1 — backend (port 3001)
@@ -264,7 +289,7 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-Open **http://localhost:5173** and add your first companion.
+Open **http://localhost:5173** — you will be redirected to the login page. Click **Continue with Google** to sign in and create your account.
 
 ---
 
@@ -275,18 +300,40 @@ The app is configured for a single-service Railway deployment (backend serves th
 1. Push to GitHub
 2. Create a new Railway project → Deploy from GitHub repo
 3. Add a **Volume** mounted at `/app/data` (keeps the SQLite database and photos across restarts)
-4. Set environment variables:
+4. In your Google Cloud Console credentials, add the Railway callback URL as an authorised redirect URI: `https://your-app.railway.app/api/auth/google/callback`
+5. Set environment variables:
 
 | Variable | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | `sk-ant-...` |
 | `DATA_DIR` | `/app/data` |
 | `NODE_ENV` | `production` |
+| `FRONTEND_URL` | `https://your-app.railway.app` |
+| `BACKEND_URL` | `https://your-app.railway.app` |
+| `GOOGLE_CLIENT_ID` | From Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
+| `JWT_SECRET` | A long random secret string |
+| `SESSION_SECRET` | A different long random secret string |
 
 Railway detects `nixpacks.toml` automatically and handles the build and start steps.
 
 ---
 
+## Authentication
+
+My Companion uses **Google OAuth 2.0** for sign-in. The flow is:
+
+1. User clicks **Continue with Google** → redirected to Google's consent screen
+2. Google redirects back to the backend callback URL
+3. Backend finds or creates a user record, signs a **30-day JWT**
+4. JWT is passed to the frontend via a redirect to `/auth/callback?token=…`
+5. Frontend stores the JWT in `localStorage` and attaches it as `Authorization: Bearer` on every API request
+6. All persona and conversation data is **scoped to the authenticated user** — no user can see another user's companions
+
+`express-session` is used only for the brief OAuth state exchange (CSRF protection during the redirect dance). Long-term sessions are stateless JWTs.
+
+---
+
 ## Data & Privacy
 
-All data — personas, memories, conversations, photos, knowledge sources, mood behaviours, and all profile details — is stored **locally** in a SQLite database (`backend/data/companion.db`) and a local uploads folder. Nothing is sent to any external server except conversation messages, which are sent to the Anthropic API to generate responses.
+All data — personas, memories, conversations, photos, knowledge sources, and mood behaviours — is stored in a SQLite database and a local uploads folder on the server. Each user's data is isolated by their account. Conversation messages are sent to the Anthropic API to generate responses; no other data leaves the server.

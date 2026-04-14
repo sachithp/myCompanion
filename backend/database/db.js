@@ -21,6 +21,15 @@ function initDb() {
   db.pragma('foreign_keys = ON')
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      google_id TEXT UNIQUE NOT NULL,
+      email TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS personas (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -40,6 +49,7 @@ function initDb() {
       likes                   TEXT,
       dislikes                TEXT,
       context_notes           TEXT,
+      user_id TEXT REFERENCES users(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -97,6 +107,7 @@ function initDb() {
 
   // Migrate existing databases — add new columns if not yet present
   const migrations = [
+    'ALTER TABLE personas ADD COLUMN user_id TEXT REFERENCES users(id)',
     'ALTER TABLE conversations ADD COLUMN current_mode TEXT DEFAULT \'normal\'',
     'ALTER TABLE personas ADD COLUMN ocean_openness          INTEGER DEFAULT 50',
     'ALTER TABLE personas ADD COLUMN ocean_conscientiousness INTEGER DEFAULT 50',

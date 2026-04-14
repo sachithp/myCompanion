@@ -5,3 +5,4 @@ backend/.env
 frontend/dist/
 .DS_Store
 .claude/
+/client_secret_435647653615-5kisoc24boa91mf3ju8j7507v0l9ba4r.apps.googleusercontent.com.json

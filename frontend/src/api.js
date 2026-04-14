@@ -2,6 +2,13 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api' })
 
+// Attach the JWT on every request automatically
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('mc_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 // Personas
 export const getPersonas = () => api.get('/personas')
 export const getPersona = (id) => api.get(`/personas/${id}`)

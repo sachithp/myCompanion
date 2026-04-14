@@ -7,6 +7,15 @@ const router = express.Router()
 require('dotenv').config({ override: true })
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// Returns a conversation only when its persona belongs to the requesting user
+function getConversationForUser(db, conversationId, userId) {
+  return db.prepare(`
+    SELECT c.* FROM conversations c
+    JOIN personas p ON p.id = c.persona_id
+    WHERE c.id = ? AND p.user_id = ?
+  `).get(conversationId, userId)
+}
+
 function buildOceanDescription(persona) {
   const o = persona.ocean_openness          ?? 50
   const c = persona.ocean_conscientiousness ?? 50
@@ -198,7 +207,10 @@ Only ever reference places, events, opinions, or experiences that are explicitly
 
 // GET /api/conversations/:id/messages
 router.get('/:id/messages', (req, res) => {
-  const db = getDb()
+  const db           = getDb()
+  const conversation = getConversationForUser(db, req.params.id, req.user.userId)
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
+
   const messages = db.prepare(
     'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
   ).all(req.params.id)
@@ -207,14 +219,20 @@ router.get('/:id/messages', (req, res) => {
 
 // DELETE /api/conversations/:id
 router.delete('/:id', (req, res) => {
-  const db = getDb()
+  const db           = getDb()
+  const conversation = getConversationForUser(db, req.params.id, req.user.userId)
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
+
   db.prepare('DELETE FROM conversations WHERE id = ?').run(req.params.id)
   res.json({ success: true })
 })
 
 // PATCH /api/conversations/:id/mode — update the current persona mood
 router.patch('/:id/mode', (req, res) => {
-  const db = getDb()
+  const db           = getDb()
+  const conversation = getConversationForUser(db, req.params.id, req.user.userId)
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
+
   const { mode } = req.body
   const valid = ['normal', 'happy', 'nostalgic', 'tired', 'sad', 'worried', 'excited', 'unwell', 'busy']
   if (!valid.includes(mode)) return res.status(400).json({ error: 'Invalid mode' })
@@ -294,7 +312,7 @@ router.post('/:id/messages', async (req, res) => {
   const { content } = req.body
   if (!content?.trim()) return res.status(400).json({ error: 'Message content is required' })
 
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id)
+  const conversation = getConversationForUser(db, req.params.id, req.user.userId)
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
 
   const trimmed = content.trim()
@@ -315,7 +333,7 @@ router.post('/:id/events', async (req, res) => {
   const { content } = req.body
   if (!content?.trim()) return res.status(400).json({ error: 'Event content is required' })
 
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id)
+  const conversation = getConversationForUser(db, req.params.id, req.user.userId)
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
 
   // Store with [Event: ...] prefix so the AI and UI both recognise it

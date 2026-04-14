@@ -8,18 +8,31 @@ const router = express.Router()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// interests / likes / dislikes are stored as JSON strings in SQLite
-function parseInterests(raw) {
+// interests / likes / dislikes / usual_places are stored as JSON strings in SQLite
+function parseList(raw) {
   if (!raw) return []
   try { return JSON.parse(raw) } catch { return [] }
+}
+// backward-compat: old usual_places was a plain string; new format is [{name,category}]
+function parsePlaces(raw) {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed
+    return []
+  } catch {
+    // legacy plain-text string — wrap each comma-separated entry
+    return raw.split(',').map(s => ({ name: s.trim(), category: 'Other' })).filter(p => p.name)
+  }
 }
 function withInterests(p) {
   if (!p) return p
   return {
     ...p,
-    interests: parseInterests(p.interests),
-    likes:     parseInterests(p.likes),
-    dislikes:  parseInterests(p.dislikes),
+    usual_places: parsePlaces(p.usual_places),
+    interests:    parseList(p.interests),
+    likes:        parseList(p.likes),
+    dislikes:     parseList(p.dislikes),
   }
 }
 
@@ -66,7 +79,9 @@ router.post('/', (req, res) => {
     past_conversations || null, photo_path || null,
     ocean_openness ?? 50, ocean_conscientiousness ?? 50, ocean_extraversion ?? 50,
     ocean_agreeableness ?? 50, ocean_neuroticism ?? 50,
-    location || null, usual_places || null, daily_routine || null,
+    location || null,
+    usual_places?.length ? JSON.stringify(usual_places) : null,
+    daily_routine || null,
     interests?.length ? JSON.stringify(interests) : null,
     likes?.length     ? JSON.stringify(likes)     : null,
     dislikes?.length  ? JSON.stringify(dislikes)  : null,
@@ -128,7 +143,7 @@ router.post('/import', (req, res) => {
     persona.ocean_agreeableness     ?? 50,
     persona.ocean_neuroticism       ?? 50,
     persona.location       || null,
-    persona.usual_places   || null,
+    persona.usual_places?.length ? JSON.stringify(persona.usual_places) : null,
     persona.daily_routine  || null,
     persona.interests?.length ? JSON.stringify(persona.interests) : null,
     persona.likes?.length     ? JSON.stringify(persona.likes)     : null,
@@ -241,7 +256,9 @@ router.put('/:id', (req, res) => {
     past_conversations || null, photo_path || null,
     ocean_openness ?? 50, ocean_conscientiousness ?? 50, ocean_extraversion ?? 50,
     ocean_agreeableness ?? 50, ocean_neuroticism ?? 50,
-    location || null, usual_places || null, daily_routine || null,
+    location || null,
+    usual_places?.length ? JSON.stringify(usual_places) : null,
+    daily_routine || null,
     interests?.length ? JSON.stringify(interests) : null,
     likes?.length     ? JSON.stringify(likes)     : null,
     dislikes?.length  ? JSON.stringify(dislikes)  : null,
@@ -486,11 +503,11 @@ router.get('/:id/export', (req, res) => {
       ocean_agreeableness:     persona.ocean_agreeableness,
       ocean_neuroticism:       persona.ocean_neuroticism,
       location:      persona.location,
-      usual_places:  persona.usual_places,
+      usual_places:  parsePlaces(persona.usual_places),
       daily_routine: persona.daily_routine,
-      interests:     parseInterests(persona.interests),
-      likes:         parseInterests(persona.likes),
-      dislikes:      parseInterests(persona.dislikes),
+      interests:     parseList(persona.interests),
+      likes:         parseList(persona.likes),
+      dislikes:      parseList(persona.dislikes),
       context_notes: persona.context_notes,
     },
     memories,

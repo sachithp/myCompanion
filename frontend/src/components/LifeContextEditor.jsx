@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, MapPin } from 'lucide-react'
 
 // Structured life-context editor — location, places, interests, likes, dislikes, routine, notes
 // This data grounds the AI in known facts and prevents it from inventing details.
@@ -114,6 +114,108 @@ function TagInput({ tags, onChange, placeholder, tagClass, addBtnClass }) {
   )
 }
 
+// ── PlacesEditor ──────────────────────────────────────────────────────────────
+const PLACE_CATEGORIES = [
+  { id: 'Park / Garden',           emoji: '🌳' },
+  { id: 'Supermarket / Shop',      emoji: '🛒' },
+  { id: 'Restaurant',              emoji: '🍽️' },
+  { id: 'Café / Coffee shop',      emoji: '☕' },
+  { id: 'Pub / Bar',               emoji: '🍺' },
+  { id: 'Cinema / Theatre',        emoji: '🎬' },
+  { id: 'Church / Place of worship', emoji: '⛪' },
+  { id: 'Library',                 emoji: '📚' },
+  { id: 'Hospital / Clinic',       emoji: '🏥' },
+  { id: 'Pharmacy',                emoji: '💊' },
+  { id: 'Gym / Sports centre',     emoji: '💪' },
+  { id: 'School / College',        emoji: '🏫' },
+  { id: 'Bank',                    emoji: '🏦' },
+  { id: 'Hotel',                   emoji: '🏨' },
+  { id: 'Beach / Outdoors',        emoji: '🏖️' },
+  { id: 'Community centre',        emoji: '🏘️' },
+  { id: 'Other',                   emoji: '📍' },
+]
+
+function PlacesEditor({ places, onChange }) {
+  const [draftName, setDraftName]       = useState('')
+  const [draftCategory, setDraftCategory] = useState(PLACE_CATEGORIES[0].id)
+
+  function add() {
+    const name = draftName.trim()
+    if (!name) return
+    onChange([...places, { name, category: draftCategory }])
+    setDraftName('')
+    setDraftCategory(PLACE_CATEGORIES[0].id)
+  }
+
+  function remove(idx) {
+    onChange(places.filter((_, i) => i !== idx))
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); add() }
+  }
+
+  const catMap = Object.fromEntries(PLACE_CATEGORIES.map(c => [c.id, c.emoji]))
+
+  return (
+    <div>
+      {/* Existing places */}
+      {places.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {places.map((p, i) => (
+            <span key={i}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full
+                         text-xs font-medium bg-warm-100 border border-warm-300 text-warm-800">
+              <span>{catMap[p.category] || '📍'}</span>
+              <span>{p.name}</span>
+              <span className="text-warm-400 text-[10px]">· {p.category}</span>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Add row */}
+      <div className="flex gap-2">
+        <input
+          className="input text-sm flex-1 min-w-0"
+          placeholder="e.g. Tesco on the High Street"
+          value={draftName}
+          onChange={e => setDraftName(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <select
+          className="input text-sm w-52 flex-shrink-0"
+          value={draftCategory}
+          onChange={e => setDraftCategory(e.target.value)}
+        >
+          {PLACE_CATEGORIES.map(c => (
+            <option key={c.id} value={c.id}>{c.emoji} {c.id}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={add}
+          disabled={!draftName.trim()}
+          className="flex-shrink-0 w-9 h-10 rounded-xl flex items-center justify-center
+                     bg-warm-100 text-warm-700 hover:bg-warm-200 transition-colors
+                     disabled:opacity-30"
+          title="Add place"
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+      <p className="text-xs text-warm-400 mt-1">Press Enter or click + to add</p>
+    </div>
+  )
+}
+
 // ── LifeContextEditor ─────────────────────────────────────────────────────────
 /**
  * Props:
@@ -122,9 +224,10 @@ function TagInput({ tags, onChange, placeholder, tagClass, addBtnClass }) {
  *   onChange — (key, value) => void
  */
 export default function LifeContextEditor({ values, onChange }) {
-  const interests = values.interests || []
-  const likes     = values.likes     || []
-  const dislikes  = values.dislikes  || []
+  const interests    = values.interests    || []
+  const likes        = values.likes        || []
+  const dislikes     = values.dislikes     || []
+  const usual_places = Array.isArray(values.usual_places) ? values.usual_places : []
 
   function toggleInterest(item) {
     const updated = interests.includes(item)
@@ -136,26 +239,30 @@ export default function LifeContextEditor({ values, onChange }) {
   return (
     <div className="space-y-6">
 
-      {/* Location + Usual places */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="label">Where they live</label>
-          <input
-            className="input"
-            placeholder="e.g. Liverpool, England"
-            value={values.location || ''}
-            onChange={(e) => onChange('location', e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Places they often visit</label>
-          <input
-            className="input"
-            placeholder="e.g. the park, St. Mary's Church, the local library"
-            value={values.usual_places || ''}
-            onChange={(e) => onChange('usual_places', e.target.value)}
-          />
-        </div>
+      {/* Location */}
+      <div>
+        <label className="label">Where they live</label>
+        <input
+          className="input"
+          placeholder="e.g. Liverpool, England"
+          value={values.location || ''}
+          onChange={(e) => onChange('location', e.target.value)}
+        />
+      </div>
+
+      {/* Places they visit */}
+      <div>
+        <label className="label flex items-center gap-1.5">
+          <MapPin size={13} className="text-warm-500" />
+          Places they often visit
+        </label>
+        <p className="text-xs text-warm-400 mb-3">
+          Add each place with a category — the AI will reference them naturally in conversation.
+        </p>
+        <PlacesEditor
+          places={usual_places}
+          onChange={(v) => onChange('usual_places', v)}
+        />
       </div>
 
       {/* Interests */}

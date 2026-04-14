@@ -10,7 +10,7 @@ Users create rich profiles of their loved ones — calibrating personality scien
 
 - **Loved-one personas** — Create a profile for anyone: a parent, grandparent, old friend, or partner. Add a photo, relationship label, personal notes, and sample words.
 - **Big Five (OCEAN) personality system** — Calibrate personality scientifically with five sliders (0–100). Each slider shows a live plain-language description as you adjust it. The scores become a detailed psychological brief inside the AI's system prompt.
-- **Life & world context** — Record where they live, places they regularly visit, interests and hobbies (toggle-pill selector), likes, dislikes, daily routine, and other factual details. The AI uses only what is recorded — it never invents details about their life.
+- **Life & world context** — Record where they live, their regularly visited places (each with a category: park, supermarket, café, restaurant, church, library, hospital, and more), interests and hobbies (toggle-pill selector), likes, dislikes, daily routine, and other factual details. The AI uses only what is recorded — it never invents details about their life.
 - **Family & connections** — Add the people both of you know (family, friends, colleagues), with dual relationship labels — how the persona knew them and how you know them. The AI references these names naturally in conversation.
 - **Memory cards** — Attach specific stories and moments so the AI can bring them up naturally, the way a real person would.
 - **Knowledge & references** — Upload `.md` or `.txt` files (Wikipedia exports, interview transcripts, blog posts) or paste web links. The server fetches and stores the page text. The AI draws on these facts in conversation without inventing beyond them.
@@ -152,7 +152,7 @@ myCompanion/
             ├── Layout.jsx              Navbar (user menu with Settings link + sign out) + page wrapper
             ├── PersonaCard.jsx         Card with avatar, export/edit/delete actions
             ├── OceanSliders.jsx        Big Five sliders with gradient fill + live descriptions
-            ├── LifeContextEditor.jsx   Location, places, interests, likes, dislikes, routine
+            ├── LifeContextEditor.jsx   Location, categorised places editor (17 categories), interests, likes, dislikes, routine
             ├── RelationsEditor.jsx     Family & connections editor
             ├── KnowledgeEditor.jsx     Upload .md/.txt files or fetch web links as reference material
             ├── ModeBehaviorsEditor.jsx Per-mood custom behavior definitions (accordion list)
@@ -212,12 +212,14 @@ For each mood, you can describe exactly how *this person* expresses that state. 
 The result is a response that sounds like a tired version of *them*, not just a generic tired person. Applies to all 9 modes including Normal, where it acts as a general behavioral baseline.
 
 ### 4. Life & world context
-Known facts assembled into a grounded brief:
-- Where they live and places they regularly visit
-- Interests and hobbies (from the toggle-pill selector)
-- Things they like and things they dislike (free-text tags)
-- Typical daily routine
-- Other known details (occupation, beliefs, habits)
+Known facts assembled into a grounded brief injected into every system prompt:
+
+- **Where they live** — town, city, or neighbourhood
+- **Places they regularly visit** — each place is stored with a name and one of 17 categories (🌳 Park/Garden · 🛒 Supermarket/Shop · 🍽️ Restaurant · ☕ Café · 🍺 Pub/Bar · 🎬 Cinema/Theatre · ⛪ Church · 📚 Library · 🏥 Hospital/Clinic · 💊 Pharmacy · 💪 Gym · 🏫 School · 🏦 Bank · 🏨 Hotel · 🏖️ Beach/Outdoors · 🏘️ Community centre · 📍 Other). The AI is instructed to reference these places by name and type naturally — the way someone who actually goes there would mention them in passing, never as an announcement.
+- **Interests and hobbies** — from the toggle-pill selector (grouped into 7 categories)
+- **Things they like and dislike** — free-text tags
+- **Typical daily routine** — a sketch of their day
+- **Other known details** — occupation, beliefs, habits, anything else that matters
 
 ### 5. Knowledge & references
 Uploaded documents and fetched web pages are stored as text and injected into the system prompt as a factual reference section. The AI can draw on biographical details, published writing, interviews, or any structured text — but is still bound by the grounding rule not to invent beyond what is written.
@@ -233,6 +235,19 @@ Specific stories and shared moments the AI can bring up naturally during convers
 
 ### 9. Live events
 Mid-conversation context injections (e.g. *"It's Christmas morning"*, *"I just got promoted"*) stored as `[Event: ...]` messages. The persona reacts immediately in character.
+
+### Personality-driven voice instructions
+The "How to speak" section in every system prompt translates the OCEAN scores into concrete behavioural directives applied throughout the response — not just at the start:
+
+| Trait | Low (≤40) directive | High (≥60) directive |
+|---|---|---|
+| **Openness** | Grounded, practical, prefers the familiar | Curious, imaginative, connects ideas |
+| **Conscientiousness** | Relaxed, spontaneous, goes with the flow | Reliable, structured, mentions plans and follow-through |
+| **Extraversion** | Thoughtful, quietly present, measured | Warm, expressive, energised by the exchange |
+| **Agreeableness** | Frank, direct, honest even when uncomfortable | Leads with warmth and affirmation |
+| **Emotional Sensitivity** | Steady, calm, reassuring presence | Feelings come through openly, responds deeply |
+
+Places are referenced naturally by name — "I was at Tesco earlier" not "I visited my usual supermarket" — and the current mood is required to shape the energy and length of every response, not just the opening.
 
 ### Grounding rule
 Every system prompt ends with an explicit instruction:
@@ -250,7 +265,7 @@ Personas are fully portable. Every export is a self-contained `.json` file that 
 |---|---|
 | Core profile | Name, relationship, personal notes, sample words |
 | Personality | OCEAN scores (5 values, 0–100 each) |
-| Life context | Location, usual places, daily routine, context notes |
+| Life context | Location, usual places (array of `{name, category}` objects), daily routine, context notes |
 | Preferences | Interests (array), likes (array), dislikes (array) |
 | Family & connections | All relations with dual relationship labels and notes |
 | Memory cards | Title + content for every memory |

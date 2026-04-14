@@ -19,7 +19,7 @@ Users create rich profiles of their loved ones — calibrating personality scien
 - **Live events** — Inject real-world context mid-conversation with a single tap: time of day, weather, how you're feeling, occasions, life moments, or a custom event. The persona reacts in character immediately.
 - **Streaming AI conversations** — Responses stream token by token via Server-Sent Events, just like a real conversation.
 - **Conversation history** — All chats are saved and can be resumed. Start a fresh conversation any time.
-- **Import & export personas** — Export any persona as a fully self-contained `.json` file — photo, OCEAN scores, life context, likes, dislikes, relations, memories, knowledge sources, mood behaviours, and sample words all included. Import on any instance with a full preview before confirming.
+- **Import & export personas** — Export any persona as a fully self-contained `.json` file — photo, OCEAN scores, life context (including categorised places), likes, dislikes, relations, memories, knowledge sources, mood behaviours, and sample words all included. Import on any instance with a full preview (shows places, interests, memory count, connection count, and knowledge source count) before confirming.
 - **Google OAuth login** — Sign in with your Google account. Every user has a private, isolated set of companions — no one else can see your conversations or profiles.
 - **Per-user Anthropic API key** — Optionally supply your own `sk-ant-…` key via the Settings page. The app uses your personal Anthropic quota for every conversation. Falls back to the server's shared key if none is set.
 - **Model selector** — Choose which Claude model powers your conversations: Opus (most expressive), Sonnet (balanced), or Haiku (fastest). Set per user in Settings; takes effect on the next message.
@@ -273,7 +273,9 @@ Personas are fully portable. Every export is a self-contained `.json` file that 
 | Mood behaviours | Custom behavioral description for each of the 9 mood modes |
 | Photo | Base64-encoded data URL (fully self-contained, no broken links) |
 
-The import preview shows the personality bar chart, location, interests, memory count, and connection count before confirming. Files exported before a new field was added import cleanly — missing values default gracefully.
+The import preview shows the personality bar chart, location, places visited, interests, memory count, connection count, and knowledge source count before confirming. Files exported before a new field was added import cleanly — missing values default gracefully.
+
+Export uses an authenticated `fetch()` call with the JWT token so it works correctly behind the auth layer. The download is triggered from a temporary blob URL — no server-side session or cookie required.
 
 ---
 

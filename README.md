@@ -2,7 +2,7 @@
 
 A warm, AI-powered companion app for people who are living alone, elderly citizens, and those who want to keep the memory of a loved one alive — whether they are far away or no longer with us.
 
-Users create rich profiles of their loved ones — calibrating personality scientifically, recording their world in detail, and pasting their actual words. The AI speaks in that person's voice, grounded entirely in what is known, never inventing.
+Users create rich profiles of their loved ones — calibrating personality scientifically, recording their world in detail, pasting their actual words, and attaching real reference material. The AI speaks in that person's voice, grounded entirely in what is known, never inventing.
 
 ---
 
@@ -11,13 +11,15 @@ Users create rich profiles of their loved ones — calibrating personality scien
 - **Loved-one personas** — Create a profile for anyone: a parent, grandparent, old friend, or partner. Add a photo, relationship label, personal notes, and sample words.
 - **Big Five (OCEAN) personality system** — Calibrate personality scientifically with five sliders (0–100). Each slider shows a live plain-language description as you adjust it. The scores become a detailed psychological brief inside the AI's system prompt.
 - **Life & world context** — Record where they live, places they regularly visit, interests and hobbies (toggle-pill selector), likes, dislikes, daily routine, and other factual details. The AI uses only what is recorded — it never invents details about their life.
-- **Likes & dislikes** — Free-text tag inputs for specific preferences. Warm-brown tags for likes, blush-rose for dislikes. Both feed directly into the grounding section of the system prompt.
 - **Family & connections** — Add the people both of you know (family, friends, colleagues), with dual relationship labels — how the persona knew them and how you know them. The AI references these names naturally in conversation.
 - **Memory cards** — Attach specific stories and moments so the AI can bring them up naturally, the way a real person would.
+- **Knowledge & references** — Upload `.md` or `.txt` files (Wikipedia exports, interview transcripts, blog posts) or paste web links. The server fetches and stores the page text. The AI draws on these facts in conversation without inventing beyond them.
+- **Mood mode selector** — Set the persona's current emotional state mid-conversation: Normal, Happy, Nostalgic, Tired, Sad, Worried, Excited, Unwell, or Busy. The AI immediately adjusts its tone, energy, and behaviour to match. The mode persists across page reloads and is stored per conversation.
+- **Mood behaviours** — Define exactly how *this specific person* expresses each mood. Goes beyond the generic mood description — e.g. *"when tired, she still asks about the kids but keeps sentences short and mentions her back is hurting"*. Layered on top of the OCEAN personality for uniquely personal responses.
 - **Live events** — Inject real-world context mid-conversation with a single tap: time of day, weather, how you're feeling, occasions, life moments, or a custom event. The persona reacts in character immediately.
 - **Streaming AI conversations** — Responses stream token by token via Server-Sent Events, just like a real conversation.
 - **Conversation history** — All chats are saved and can be resumed. Start a fresh conversation any time.
-- **Import & export personas** — Export any persona as a fully self-contained `.json` file — photo, OCEAN scores, life context, likes, dislikes, relations, memories, and sample words all included. The import preview shows personality bars, location, interests, and counts before you confirm.
+- **Import & export personas** — Export any persona as a fully self-contained `.json` file — photo, OCEAN scores, life context, likes, dislikes, relations, memories, knowledge sources, mood behaviours, and sample words all included. Import on any instance with a full preview before confirming.
 - **Warm, accessible UI** — Designed for elderly and non-technical users. Soft warm palette, serif typography, clear layout.
 
 ---
@@ -30,28 +32,32 @@ myCompanion/
 ├── backend/                  Node.js + Express API server
 │   ├── server.js             Entry point — middleware, photo upload, serves built frontend
 │   ├── database/
-│   │   └── db.js             SQLite schema + automatic migration for all new columns
+│   │   └── db.js             SQLite schema + automatic migration loop for all new tables/columns
 │   ├── routes/
-│   │   ├── personas.js       Full CRUD, memory/relation/import/export endpoints
-│   │   └── conversations.js  Streaming chat + live events endpoint + system prompt builder
+│   │   ├── personas.js       Full CRUD, memory/relation/knowledge/mode-behavior/import/export endpoints
+│   │   └── conversations.js  Streaming chat + live events + system prompt builder (all layers)
 │   └── uploads/photos/       Uploaded persona photos (git-ignored)
 │
 └── frontend/                 React SPA (Vite)
     └── src/
         ├── App.jsx            Router (react-router-dom v6)
-        ├── api.js             Axios client + export trigger helper
+        ├── api.js             Axios client + all API helpers
+        ├── utils/
+        │   └── modes.js       Shared mood mode definitions (emoji, label, hint, generic description)
         ├── pages/
         │   ├── Home.jsx       Persona grid, import button, full import preview modal
-        │   ├── NewPersona.jsx Create persona — all sections
-        │   ├── EditPersona.jsx Edit persona + live memory/relation management
-        │   └── Chat.jsx       Full-screen streaming chat with live event injection
+        │   ├── NewPersona.jsx Create persona — all sections, staged drafts
+        │   ├── EditPersona.jsx Edit persona + live memory/relation/knowledge management
+        │   └── Chat.jsx       Full-screen streaming chat, mood picker, live event injection
         └── components/
-            ├── Layout.jsx          Navbar + page wrapper
-            ├── PersonaCard.jsx     Card with avatar, export/edit/delete actions
-            ├── OceanSliders.jsx    Big Five sliders with gradient fill + live descriptions
-            ├── LifeContextEditor.jsx  Location, places, interests, likes, dislikes, routine
-            ├── RelationsEditor.jsx    Family & connections editor
-            └── EventPanel.jsx      Live event panel — presets + custom input
+            ├── Layout.jsx              Navbar + page wrapper
+            ├── PersonaCard.jsx         Card with avatar, export/edit/delete actions
+            ├── OceanSliders.jsx        Big Five sliders with gradient fill + live descriptions
+            ├── LifeContextEditor.jsx   Location, places, interests, likes, dislikes, routine
+            ├── RelationsEditor.jsx     Family & connections editor
+            ├── KnowledgeEditor.jsx     Upload .md/.txt files or fetch web links as reference material
+            ├── ModeBehaviorsEditor.jsx Per-mood custom behavior definitions (accordion list)
+            └── EventPanel.jsx          Live event panel — presets + custom input
 ```
 
 ---
@@ -77,7 +83,7 @@ myCompanion/
 
 ## How the AI Persona Works
 
-Every message triggers a system prompt assembled from all layers of the persona's profile.
+Every message triggers a system prompt assembled from all layers of the persona's profile. Each layer narrows the AI's voice further — from broad personality down to the exact mood of that specific person on that specific day.
 
 ### 1. Big Five (OCEAN) personality profile
 Five calibrated scores (0–100) are translated into a trait-by-trait narrative that shapes the AI's entire voice:
@@ -92,24 +98,40 @@ Five calibrated scores (0–100) are translated into a trait-by-trait narrative 
 
 A score of 85 on Agreeableness becomes: *"Deeply warm and compassionate — always puts others first; extraordinarily gentle and kind in every word and action."*
 
-### 2. Life & world context
+### 2. Mood mode
+The current emotional state of the persona, selected from the chat header and persisted per conversation. When a mode is active, the system prompt receives a specific directive about energy level, verbosity, and behaviour — e.g. for **Tired**: *"responses are slower, gentler, and shorter than usual — still loving, but quieter."*
+
+Available modes: Normal · Happy 😊 · Nostalgic 💭 · Tired 😴 · Sad 😢 · Worried 😟 · Excited 🎉 · Unwell 🤒 · Busy ⚡
+
+### 3. Mood behaviours (persona-specific)
+For each mood, you can describe exactly how *this person* expresses that state. This is layered on top of the generic mood description. For example:
+
+> **Tired** (generic): *low energy, quieter, shorter responses*
+> **Tired** (this persona): *"still asks about the kids but keeps sentences short; mentions her back is hurting"*
+
+The result is a response that sounds like a tired version of *them*, not just a generic tired person. Applies to all 9 modes including Normal, where it acts as a general behavioral baseline.
+
+### 4. Life & world context
 Known facts assembled into a grounded brief:
 - Where they live and places they regularly visit
 - Interests and hobbies (from the toggle-pill selector)
-- **Things they like** and **things they dislike** (free-text tags)
+- Things they like and things they dislike (free-text tags)
 - Typical daily routine
 - Other known details (occupation, beliefs, habits)
 
-### 3. Family & connections
+### 5. Knowledge & references
+Uploaded documents and fetched web pages are stored as text and injected into the system prompt as a factual reference section. The AI can draw on biographical details, published writing, interviews, or any structured text — but is still bound by the grounding rule not to invent beyond what is written.
+
+### 6. Family & connections
 People both the persona and the user know, with dual relationship labels. The AI references them naturally — "How's your brother John getting on?" — without being told.
 
-### 4. Personal notes & sample words
+### 7. Personal notes & sample words
 Free-form notes for quirks and habits, plus pasted letters, texts, or emails. The model mirrors the persona's natural phrasing from these samples.
 
-### 5. Memory cards
+### 8. Memory cards
 Specific stories and shared moments the AI can bring up naturally during conversation.
 
-### 6. Live events
+### 9. Live events
 Mid-conversation context injections (e.g. *"It's Christmas morning"*, *"I just got promoted"*) stored as `[Event: ...]` messages. The persona reacts immediately in character.
 
 ### Grounding rule
@@ -124,17 +146,19 @@ This prevents hallucinated details and keeps the conversation feeling real rathe
 
 Personas are fully portable. Every export is a self-contained `.json` file that includes:
 
-| Field | Included |
+| Category | Fields included |
 |---|---|
-| Name, relationship, personal notes, sample words | ✅ |
-| OCEAN personality scores (5 values) | ✅ |
-| Life context (location, places, routine, notes) | ✅ |
-| Interests, likes, dislikes | ✅ |
-| Family & connections (with dual relationship labels) | ✅ |
-| Memory cards | ✅ |
-| Photo (base64 data URL) | ✅ |
+| Core profile | Name, relationship, personal notes, sample words |
+| Personality | OCEAN scores (5 values, 0–100 each) |
+| Life context | Location, usual places, daily routine, context notes |
+| Preferences | Interests (array), likes (array), dislikes (array) |
+| Family & connections | All relations with dual relationship labels and notes |
+| Memory cards | Title + content for every memory |
+| Knowledge sources | Type (file/link), title, URL, and full stored text content |
+| Mood behaviours | Custom behavioral description for each of the 9 mood modes |
+| Photo | Base64-encoded data URL (fully self-contained, no broken links) |
 
-The import preview shows the personality bar chart, location, interests, memory count, and connection count before confirming. Older exported files missing newer fields import cleanly — missing values default gracefully.
+The import preview shows the personality bar chart, location, interests, memory count, and connection count before confirming. Files exported before a new field was added import cleanly — missing values default gracefully.
 
 ---
 
@@ -197,4 +221,4 @@ Railway detects `nixpacks.toml` automatically and handles the build and start st
 
 ## Data & Privacy
 
-All data — personas, memories, conversations, photos, and all profile details — is stored **locally** in a SQLite database (`backend/data/companion.db`) and a local uploads folder. Nothing is sent to any external server except conversation messages, which are sent to the Anthropic API to generate responses.
+All data — personas, memories, conversations, photos, knowledge sources, mood behaviours, and all profile details — is stored **locally** in a SQLite database (`backend/data/companion.db`) and a local uploads folder. Nothing is sent to any external server except conversation messages, which are sent to the Anthropic API to generate responses.

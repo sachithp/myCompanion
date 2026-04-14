@@ -58,7 +58,7 @@ export default function PersonaCard({ persona, onDeleted }) {
           {/* Action buttons */}
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => exportPersona(persona.id, persona.name)}
+              onClick={() => exportPersona(persona.id, persona.name).catch(() => alert('Export failed. Please try again.'))}
               className="p-1.5 rounded-lg text-warm-400 hover:text-warm-600 hover:bg-warm-100
                          transition-colors"
               title="Export"

@@ -17,7 +17,7 @@ const MODELS = [
     desc:  'Strong quality at a lower cost. A great everyday choice.',
   },
   {
-    id:    'claude-haiku-3-5',
+    id:    'claude-haiku-4-5-20251001',
     name:  'Claude Haiku',
     badge: 'Fastest',
     desc:  'Quickest responses, most economical. Good for frequent short chats.',

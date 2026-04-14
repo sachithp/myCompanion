@@ -194,9 +194,13 @@ export default function Chat() {
     setError('')
 
     try {
+      const token = localStorage.getItem('mc_token')
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ content: displayMessage }),
       })
       if (!response.ok) throw new Error('Network error')

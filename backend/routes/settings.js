@@ -12,7 +12,7 @@ function maskKey(key) {
 const ALLOWED_MODELS = [
   'claude-opus-4-6',
   'claude-sonnet-4-5',
-  'claude-haiku-3-5',
+  'claude-haiku-4-5-20251001',
 ]
 
 // GET /api/settings — return current settings (key is masked, never returned in full)
